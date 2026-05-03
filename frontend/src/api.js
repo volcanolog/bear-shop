@@ -1,9 +1,7 @@
 import axios from "axios";
 
-// 1. Определяем базовый адрес сервера
 const SERVER_URL = "http://localhost:3000";
 
-// 2. Создаем клиент axios для API-запросов
 const apiClient = axios.create({
   baseURL: `${SERVER_URL}/api`,
   headers: {
@@ -12,15 +10,21 @@ const apiClient = axios.create({
   },
 });
 
-// 3. Функция для получения URL картинок (теперь SERVER_URL определен!)
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`; // Формат согласно методичке
+  }
+  return config;
+});
+
 export const getPictureUrl = (pictureName) => {
   if (!pictureName) return `${SERVER_URL}/pictures/no-photo.png`;
   return `${SERVER_URL}/pictures/${pictureName}`;
 };
 
-// 4. Основной объект API
 export const api = {
-  // --- ТОВАРЫ ---
+  // --- ТОВАРЫ (теперь защищены токеном через интерцептор) ---
   createProduct: async (product) => {
     const response = await apiClient.post("/products", product);
     return response.data;
@@ -48,15 +52,20 @@ export const api = {
 
   // --- АВТОРИЗАЦИЯ ---
   register: async (userData) => {
-    // Отправляем firstName, lastName, email, password
     const response = await apiClient.post("/auth/register", userData);
     return response.data;
   },
 
   login: async (credentials) => {
-    // Отправляем email и password
     const response = await apiClient.post("/auth/login", credentials);
+    if (response.data.accessToken) {
+      localStorage.setItem('token', response.data.accessToken); 
+    }
+    return response.data;
+  },
+
+  getMe: async () => {
+    const response = await apiClient.get("/auth/me");
     return response.data;
   }
 };
-

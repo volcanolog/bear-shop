@@ -2,6 +2,11 @@ const express = require("express");
 const { nanoid } = require("nanoid");
 const cors = require("cors");
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+
+const JWT_SECRET = "secret-key-2026-Ann"; // Секретный ключ (в реальных проектах хранится в .env)
+const ACCESS_EXPIRES_IN = '24h';
 // Подключаем Swagger
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
@@ -10,6 +15,28 @@ const app = express();
 const port = 3000;
 
 const path = require("path"); 
+
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: "Токен не предоставлен" }); 
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // Данные из токена (id, email) попадают в запрос 
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Неверный или просроченный токен" }); 
+  }
+
+  app.post("/api/products", authMiddleware, (req, res) => { /* ... */ });
+  app.patch("/api/products/:id", authMiddleware, (req, res) => { /* ... */ });
+  app.delete("/api/products/:id", authMiddleware, (req, res) => { /* ... */ });
+};
 
 app.use(express.json());
 
@@ -467,27 +494,40 @@ app.post("/api/auth/register", async (req, res) => {
  */
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email и пароль обязательны" });
-  }
+  if (!email || !password) return res.status(400).json({ error: "Email и пароль обязательны" });
 
-  const normalizedEmail = email.toLowerCase().trim();
-  const user = users.find(u => u.email === normalizedEmail);
-  
-  if (!user) {
-    return res.status(401).json({ error: "Неверный email или пароль" });
-  }
+  const user = users.find(u => u.email === email.toLowerCase().trim());
+  if (!user) return res.status(401).json({ error: "Неверный логин или пароль" });
 
   const isMatch = await verifyPassword(password, user.hashedPassword);
-
   if (isMatch) {
-    res.status(200).json({ 
-      login: true, 
-      user: { firstName: user.firstName, lastName: user.lastName } 
+    // Создаем токен (в sub кладем id, в email — почту) 
+    const accessToken = jwt.sign(
+      { sub: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: ACCESS_EXPIRES_IN }
+    );
+
+    res.status(200).json({
+      login: true,
+      accessToken, // Токен для фронтенда 
+      user: { firstName: user.FirstName, lastName: user.LastName }
     });
   } else {
-    res.status(401).json({ error: "Неверный email или пароль" });
+    res.status(401).json({ error: "Неверный логин или пароль" });
   }
+});
+
+app.get("/api/auth/me", authMiddleware, (req, res) => {
+  const user = users.find(u => u.id === req.user.sub);
+  if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    firstName: user.FirstName,
+    lastName: user.LastName
+  });
 });
 
 // 404 для всех остальных маршрутов
