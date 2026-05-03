@@ -1,65 +1,74 @@
 import React, { useState } from "react";
 import { api } from "../../api";
-import "../RegisterPage/RegisterPage.css"; // Используем те же стили
+import "./LoginPage.css";
 
-export default function LoginPage({ onNavigate, onSuccess }) {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+const LoginPage = ({ onSuccess, onNavigate }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            const data = await api.login({ email, password });
-            alert(`С возвращением, ${data.user.firstName}!`);
-            onSuccess({ firstName: data.user.firstName || data.user.firstName }); // Уводим в магазин после успешного входа
-        } catch (error) {
-            alert(error.response?.data?.error || "Неверный логин или пароль");
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = await api.login({ email, password });
+      if (data && data.accessToken) {
+        onSuccess(data.accessToken, data.user);
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || "Неверный логин или пароль");
+    }
+  };
 
-    return (
-        <div className="auth-page">
-            <div className="auth-card">
-                <h2 className="auth-card__title">Вход</h2>
-                <p className="auth-card__subtitle">Рады видеть вас снова!</p>
-
-                <form onSubmit={handleSubmit}>
-                    <div className="auth-form__group">
-                        <label className="auth-form__label">Email</label>
-                        <input 
-                            className="auth-form__input"
-                            type="email"
-                            placeholder="mail@example.com"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="auth-form__group">
-                        <label className="auth-form__label">Пароль</label>
-                        <input 
-                            className="auth-form__input"
-                            type="password"
-                            placeholder="••••••••"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </div>
-
-                    <button type="submit" className="auth-form__submit">
-                        Войти
-                    </button>
-                </form>
-
-                <div className="auth-footer">
-                    <span>Нет аккаунта?</span>
-                    <span className="auth-footer__link" onClick={onNavigate}>
-                        Зарегистрироваться
-                    </span>
-                </div>
-            </div>
+  return (
+    <div className="page login-page-flex">
+      <div className="modal"> {/* Используем стиль модального окна для формы */}
+        <div className="modal__header">
+          <span className="modal__title">Авторизация</span>
         </div>
-    );
-}
+        
+        <form className="form" onSubmit={handleSubmit}>
+          <label className="label">
+            Email
+            <input
+              className="input"
+              type="email"
+              placeholder="example@mail.ru"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+
+          <label className="label">
+            Пароль
+            <input
+              className="input"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+
+          <button className="btn btn--primary" type="submit" style={{marginTop: '10px'}}>
+            Войти
+          </button>
+
+          <div className="modal__footer" style={{justifyContent: 'center', marginTop: '15px'}}>
+            <span style={{fontSize: '13px', opacity: 0.7}}>Нет аккаунта?</span>
+            <button 
+              type="button" 
+              className="btn" 
+              onClick={onNavigate}
+              style={{border: 'none', padding: '0 5px', color: '#818cf8'}}
+            >
+              Создать
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;

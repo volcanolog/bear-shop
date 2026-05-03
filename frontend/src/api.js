@@ -2,7 +2,7 @@ import axios from "axios";
 
 const SERVER_URL = "http://localhost:3000";
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
   baseURL: `${SERVER_URL}/api`,
   headers: {
     "Content-Type": "application/json",
@@ -12,7 +12,7 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && token !== "undefined") {
     config.headers.Authorization = `Bearer ${token}`; // Формат согласно методичке
   }
   return config;
@@ -24,6 +24,7 @@ export const getPictureUrl = (pictureName) => {
 };
 
 export const api = {
+  apiClient,
   // --- ТОВАРЫ (теперь защищены токеном через интерцептор) ---
   createProduct: async (product) => {
     const response = await apiClient.post("/products", product);
@@ -59,7 +60,8 @@ export const api = {
   login: async (credentials) => {
     const response = await apiClient.post("/auth/login", credentials);
     if (response.data.accessToken) {
-      localStorage.setItem('token', response.data.accessToken); 
+      localStorage.setItem('token', response.data.accessToken);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.accessToken}`;
     }
     return response.data;
   },

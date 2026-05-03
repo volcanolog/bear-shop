@@ -1,0 +1,26 @@
+/*LoginPage.css*/
+
+/* Центрируем карточку логина на странице */
+.login-page-flex {
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    padding: 20px;
+}
+
+/* Наследуем стили из ShopPage, если они доступны глобально, 
+   либо можно просто добавить специфичные правки здесь */
+
+.login-page-flex .modal {
+    max-width: 360px; /* Делаем форму логина чуть уже, чем основное модальное окно */
+    background: #0f1526; /* Цвет из твоего ShopPage.css */
+}
+
+.login-page-flex .btn--primary {
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.login-page-flex .btn--primary:hover {
+    background: rgba(99, 102, 241, 0.3);
+}

@@ -3,44 +3,23 @@ const { nanoid } = require("nanoid");
 const cors = require("cors");
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-
-
-const JWT_SECRET = "secret-key-2026-Ann"; // Секретный ключ (в реальных проектах хранится в .env)
-const ACCESS_EXPIRES_IN = '24h';
-// Подключаем Swagger
+const path = require("path"); 
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 const port = 3000;
 
-const path = require("path"); 
+const JWT_SECRET = "secret-key-2026-Ann"; // Секретный ключ (в реальных проектах хранится в .env)
+const ACCESS_EXPIRES_IN = '24h';
 
-const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: "Токен не предоставлен" }); 
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Данные из токена (id, email) попадают в запрос 
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Неверный или просроченный токен" }); 
-  }
-
-  app.post("/api/products", authMiddleware, (req, res) => { /* ... */ });
-  app.patch("/api/products/:id", authMiddleware, (req, res) => { /* ... */ });
-  app.delete("/api/products/:id", authMiddleware, (req, res) => { /* ... */ });
-};
 
 app.use(express.json());
-
-app.use("/pictures", express.static(path.join(__dirname, "../pictures")));
+app.use(cors({
+  origin: "http://localhost:3001",
+  methods: ["GET", "POST", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
 app.use((req, res, next) => {
   res.on("finish", () => {
@@ -52,11 +31,22 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({
-  origin: "http://localhost:3001",
-  methods: ["GET", "POST", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
+app.use("/pictures", express.static(path.join(__dirname, "../pictures")));
+
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: "Токен не предоставлен" }); 
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // Данные из токена (id, email) попадают в запрос 
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Неверный или просроченный токен" }); 
+  }
+};
 
 let products = [
   { id: nanoid(6), name: "Тедди Классик",     category: "Классические", description: "Мягкий плюшевый медведь в классическом стиле с бархатными ушками.",        price: 1290, stock: 25, rating: 4.8, picture:"teddy-classic.png"},
@@ -74,6 +64,35 @@ let products = [
 ];
 
 let users =[];
+
+function findProductOr404(id, res) {
+  const product = products.find((p) => p.id === id);
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return null;
+  }
+  return product;
+}
+
+function findUserOr404(email, res) {
+  const user = users.find(u => u.email == email);
+  if (!user) {
+    res.status(404).json({ error: "user not found" });
+    return null;
+  }
+  return user;
+}
+
+//хэширование пароля
+async function hashPassword(password) {
+  const rounds = 10;
+  return bcrypt.hash(password, rounds);
+}
+
+//проверка пароля
+async function verifyPassword(password, passwordHash) {
+  return bcrypt.compare(password, passwordHash);
+}
 
 // Swagger definition
 const swaggerOptions = {
@@ -93,6 +112,128 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+
+/**
+ * @swagger
+ * /api/auth/register:
+ * post:
+ * summary: Регистрация пользователя
+ * description: Создает нового пользователя с хешированным паролем
+ * tags: [Auth]
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required:
+ * - firstName
+ * - lastName
+ * - email
+ * - password
+ * properties:
+ * firstName:
+ * type: string
+ * example: Иван
+ * lastName:
+ * type: string
+ * example: Иванов
+ * email:
+ * type: string
+ * example: ivan@example.com
+ * password:
+ * type: string
+ * example: qwerty123
+ * responses:
+ * 201:
+ * description: Пользователь успешно создан
+ * 400:
+ * description: Некорректные данные или пользователь уже существует
+ */
+app.post("/api/auth/register", async (req, res) => {
+  const { firstName, lastName, email, password } = req.body;
+  if (!firstName || !lastName ||!email || !password) {
+    return res.status(400).json({ error: "Введите Имя, Фамилию, Логин(email) и пароль" });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  if (users.find(u => u.email === normalizedEmail)) {
+    return res.status(400).json({ error: "Пользователь уже существует" });
+  }
+  
+  const newUser = {
+    id: nanoid(6),
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: normalizedEmail,
+    hashedPassword: await hashPassword(password)
+  };
+  users.push(newUser);
+  res.status(201).json({ message: "Успешная регистрация" });
+});
+
+
+/**
+ * @swagger
+ * /api/auth/login:
+ * post:
+ * summary: Авторизация пользователя
+ * tags: [Auth]
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required:
+ * - email
+ * - password
+ * properties:
+ * email:
+ * type: string
+ * example: ivan@example.com
+ * password:
+ * type: string
+ * example: qwerty123
+ * responses:
+ * 200:
+ * description: Успешный вход
+ * 401:
+ * description: Неверный логин или пароль
+ */
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+  const user = users.find(u => u.email === email?.toLowerCase().trim());
+
+  if (!user || !(await verifyPassword(password, user.hashedPassword))) {
+    return res.status(401).json({ error: "Неверный логин или пароль" });
+  }
+
+    const accessToken = jwt.sign(
+      { sub: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: ACCESS_EXPIRES_IN }
+    );
+
+    res.status(200).json({
+      login: true,
+      accessToken, // Токен для фронтенда 
+      user: { firstName: user.firstName, lastName: user.lastName }
+    });  
+});
+
+app.get("/api/auth/me", authMiddleware, (req, res) => {
+  const user = users.find(u => u.id === req.user.sub);
+  if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName 
+  });
+});
 
 /**
  * @swagger
@@ -144,24 +285,55 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
  *         piccture: "teddy-classic.jpg"
  */
 
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Возвращает список всех товаров
+ *     tags: [Products]
+ *     responses:
+ *       200:
+ *         description: Список товаров
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Product'
+ */
+app.get("/api/products", (req, res) => {
+  res.json(products);
+});
 
-function findProductOr404(id, res) {
-  const product = products.find((p) => p.id === id);
-  if (!product) {
-    res.status(404).json({ error: "Product not found" });
-    return null;
-  }
-  return product;
-}
 
-function findUserOr404(email, res) {
-  const user = users.find(u => u.email == email);
-  if (!user) {
-    res.status(404).json({ error: "user not found" });
-    return null;
-  }
-  return user;
-}
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Получает товар по ID
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID товара
+ *     responses:
+ *       200:
+ *         description: Данные товара
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Product'
+ *       404:
+ *         description: Товар не найден
+ */
+app.get("/api/products/:id", (req, res) => {
+  const product = findProductOr404(req.params.id, res);
+  if (!product) return;
+  res.json(product);
+});
 
 
 /**
@@ -230,30 +402,9 @@ app.post("/api/products", (req, res) => {
 
 /**
  * @swagger
- * /api/products:
- *   get:
- *     summary: Возвращает список всех товаров
- *     tags: [Products]
- *     responses:
- *       200:
- *         description: Список товаров
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
- */
-app.get("/api/products", (req, res) => {
-  res.json(products);
-});
-
-
-/**
- * @swagger
  * /api/products/{id}:
- *   get:
- *     summary: Получает товар по ID
+ *   delete:
+ *     summary: Удаляет товар
  *     tags: [Products]
  *     parameters:
  *       - in: path
@@ -263,19 +414,17 @@ app.get("/api/products", (req, res) => {
  *         required: true
  *         description: ID товара
  *     responses:
- *       200:
- *         description: Данные товара
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
+ *       204:
+ *         description: Товар успешно удалён (нет тела ответа)
  *       404:
  *         description: Товар не найден
  */
-app.get("/api/products/:id", (req, res) => {
-  const product = findProductOr404(req.params.id, res);
-  if (!product) return;
-  res.json(product);
+app.delete("/api/products/:id", (req, res) => {
+  const id = req.params.id;
+  const exists = products.some((p) => p.id === id);
+  if (!exists) return res.status(404).json({ error: "Продукт не найден" });
+  products = products.filter((p) => p.id !== id);
+  res.status(204).send();
 });
 
 
@@ -350,36 +499,11 @@ app.patch("/api/products/:id", (req, res) => {
   res.json(product);
 });
 
-
-/**
- * @swagger
- * /api/products/{id}:
- *   delete:
- *     summary: Удаляет товар
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         schema:
- *           type: string
- *         required: true
- *         description: ID товара
- *     responses:
- *       204:
- *         description: Товар успешно удалён (нет тела ответа)
- *       404:
- *         description: Товар не найден
- */
-app.delete("/api/products/:id", (req, res) => {
-  const id = req.params.id;
-  const exists = products.some((p) => p.id === id);
-  if (!exists) return res.status(404).json({ error: "Продукт не найден" });
-  products = products.filter((p) => p.id !== id);
-// Правильнее 204 без тела
-  res.status(204).send();
+// ОБРАБОТКА ОШИБОК
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
 });
 
-// Глобальный обработчик ошибок (чтобы сервер не падал)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
   res.status(500).json({ error: "Internal server error" });
@@ -391,146 +515,3 @@ app.listen(port, () => {
   console.log(`Swagger UI: http://localhost:${port}/api-docs`);
 });
 
-//хэширование пароля
-async function hashPassword(password) {
-  const rounds = 10;
-  return bcrypt.hash(password, rounds);
-}
-
-//проверка пароля
-async function verifyPassword(password, passwordHash) {
-  return bcrypt.compare(password, passwordHash);
-}
-
-
-/**
- * @swagger
- * /api/auth/register:
- * post:
- * summary: Регистрация пользователя
- * description: Создает нового пользователя с хешированным паролем
- * tags: [Auth]
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * required:
- * - firstName
- * - lastName
- * - email
- * - password
- * properties:
- * firstName:
- * type: string
- * example: Иван
- * lastName:
- * type: string
- * example: Иванов
- * email:
- * type: string
- * example: ivan@example.com
- * password:
- * type: string
- * example: qwerty123
- * responses:
- * 201:
- * description: Пользователь успешно создан
- * 400:
- * description: Некорректные данные или пользователь уже существует
- */
-app.post("/api/auth/register", async (req, res) => {
-  const { firstName, lastName, email, password } = req.body;
-  if (!firstName || !lastName ||!email || !password) {
-    return res.status(400).json({ error: "Введите Имя, Фамилию, Логин(email) и пароль" });
-  }
-
-  const normalizedEmail = email.toLowerCase().trim();
-
-  const existingUser = users.find(u => u.email === email.toLowerCase());
-  if (existingUser) {
-    return res.status(400).json({ error: "Пользователь с таким email уже существует" });
-  }
-  const newUser = {
-    id: nanoid(6),
-    firstName: firstName.trim(),
-    lastName: lastName.trim(),
-    email: normalizedEmail,
-    hashedPassword: await hashPassword(password)
-  };
-  users.push(newUser);
-  const { hashedPassword: _, ...userSafe } = newUser;
-  res.status(201).json(newUser);
-});
-
-/**
- * @swagger
- * /api/auth/login:
- * post:
- * summary: Авторизация пользователя
- * tags: [Auth]
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * required:
- * - email
- * - password
- * properties:
- * email:
- * type: string
- * example: ivan@example.com
- * password:
- * type: string
- * example: qwerty123
- * responses:
- * 200:
- * description: Успешный вход
- * 401:
- * description: Неверный логин или пароль
- */
-app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "Email и пароль обязательны" });
-
-  const user = users.find(u => u.email === email.toLowerCase().trim());
-  if (!user) return res.status(401).json({ error: "Неверный логин или пароль" });
-
-  const isMatch = await verifyPassword(password, user.hashedPassword);
-  if (isMatch) {
-    // Создаем токен (в sub кладем id, в email — почту) 
-    const accessToken = jwt.sign(
-      { sub: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: ACCESS_EXPIRES_IN }
-    );
-
-    res.status(200).json({
-      login: true,
-      accessToken, // Токен для фронтенда 
-      user: { firstName: user.FirstName, lastName: user.LastName }
-    });
-  } else {
-    res.status(401).json({ error: "Неверный логин или пароль" });
-  }
-});
-
-app.get("/api/auth/me", authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.sub);
-  if (!user) return res.status(404).json({ error: "Пользователь не найден" });
-
-  res.json({
-    id: user.id,
-    email: user.email,
-    firstName: user.FirstName,
-    lastName: user.LastName
-  });
-});
-
-// 404 для всех остальных маршрутов
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
