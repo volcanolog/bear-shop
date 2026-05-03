@@ -352,11 +352,6 @@ app.delete("/api/products/:id", (req, res) => {
   res.status(204).send();
 });
 
-// 404 для всех остальных маршрутов
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
-
 // Глобальный обработчик ошибок (чтобы сервер не падал)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
@@ -419,10 +414,13 @@ async function verifyPassword(password, passwordHash) {
  * description: Некорректные данные или пользователь уже существует
  */
 app.post("/api/auth/register", async (req, res) => {
-  const { firstName, LastName, email, password } = req.body;
-  if (!username || !password || age === undefined) {
+  const { firstName, lastName, email, password } = req.body;
+  if (!firstName || !lastName ||!email || !password) {
     return res.status(400).json({ error: "Введите Имя, Фамилию, Логин(email) и пароль" });
   }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
   const existingUser = users.find(u => u.email === email.toLowerCase());
   if (existingUser) {
     return res.status(400).json({ error: "Пользователь с таким email уже существует" });
@@ -430,11 +428,12 @@ app.post("/api/auth/register", async (req, res) => {
   const newUser = {
     id: nanoid(6),
     firstName: firstName.trim(),
-    LastName: LastName.trim(),
-    email: email.trim(),
+    lastName: lastName.trim(),
+    email: normalizedEmail,
     hashedPassword: await hashPassword(password)
   };
   users.push(newUser);
+  const { hashedPassword: _, ...userSafe } = newUser;
   res.status(201).json(newUser);
 });
 
@@ -471,13 +470,27 @@ app.post("/api/auth/login", async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: "Email и пароль обязательны" });
   }
-  const user = findUserOr404(email, res);
-  if (!email) return;
-  isAuthentethicated = await verifyPassword(password, user.hashedPassword);
-  if (isAuthentethicated){
-  res.status(200).json({ login: true });
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = users.find(u => u.email === normalizedEmail);
+  
+  if (!user) {
+    return res.status(401).json({ error: "Неверный email или пароль" });
   }
-  else{
-    res.status(401).json({ error: "Неверный email или пароль" })
+
+  const isMatch = await verifyPassword(password, user.hashedPassword);
+
+  if (isMatch) {
+    res.status(200).json({ 
+      login: true, 
+      user: { firstName: user.firstName, lastName: user.lastName } 
+    });
+  } else {
+    res.status(401).json({ error: "Неверный email или пароль" });
   }
+});
+
+// 404 для всех остальных маршрутов
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
 });

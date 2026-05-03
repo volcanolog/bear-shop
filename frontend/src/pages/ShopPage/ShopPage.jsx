@@ -5,7 +5,7 @@ import ProductsList from "../../components/ProductsList/ProductsList";
 import ProductModal from "../../components/ProductModal/ProductModal";
 import { api } from "../../api";
 
-export default function ShopPage({ onNavigate }) {
+export default function ShopPage({ onNavigate, user, onLogout }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -83,13 +83,15 @@ export default function ShopPage({ onNavigate }) {
         <div className="header__inner">
           <div className="brand"> Медвежья лавка</div>
           <div className="header__right">
-            <button 
-              className="btn" 
-              onClick={onNavigate} 
-              style={{ marginRight: '15px', background: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }}
-            >
-              Регистрация
-            </button>
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ color: '#818cf8' }}>Привет, {user.firstName}!</span>
+                <button className="btn" onClick={onLogout}>Выйти</button>
+              </div>
+            ) : (
+              <button className="btn" onClick={onNavigate}>Вход / Регистрация</button>
+            )}
+            <span style={{ marginLeft: '15px' }}></span>
           </div>
         </div>
       </header>
@@ -98,9 +100,11 @@ export default function ShopPage({ onNavigate }) {
         <div className="container">
           <div className="toolbar">
             <h1 className="title">Товары</h1>
-            <button className="btn btn--primary" onClick={openCreate}>
-              + Создать
-            </button>
+            {user && (
+              <button className="btn btn--primary" onClick={openCreate}>
+                + Создать
+              </button>
+            )}
           </div>
 
           {loading ? (

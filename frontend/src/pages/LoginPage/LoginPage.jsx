@@ -11,7 +11,7 @@ export default function LoginPage({ onNavigate, onSuccess }) {
         try {
             const data = await api.login({ email, password });
             alert(`С возвращением, ${data.user.firstName}!`);
-            onSuccess(); // Уводим в магазин после успешного входа
+            onSuccess({ firstName: data.user.firstName || data.user.firstName }); // Уводим в магазин после успешного входа
         } catch (error) {
             alert(error.response?.data?.error || "Неверный логин или пароль");
         }
