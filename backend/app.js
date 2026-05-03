@@ -13,6 +13,11 @@ const port = 3000;
 const JWT_SECRET = "secret-key-2026-Ann"; // Секретный ключ (в реальных проектах хранится в .env)
 const ACCESS_EXPIRES_IN = '24h';
 
+const generateTokens = (user) => {
+  const accessToken = jwt.sign({ id: user.id }, 'ACCESS_SECRET', { expiresIn: '15m' });
+  const refreshToken = jwt.sign({ id: user.id }, 'REFRESH_SECRET', { expiresIn: '7d' });
+  return { accessToken, refreshToken };
+};
 
 app.use(express.json());
 app.use(cors({
@@ -64,6 +69,8 @@ let products = [
 ];
 
 let users =[];
+
+let refreshTokens = [];
 
 function findProductOr404(id, res) {
   const product = products.find((p) => p.id === id);
@@ -233,6 +240,23 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
     firstName: user.firstName,
     lastName: user.lastName 
   });
+});
+
+app.post('/api/auth/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken || !refreshTokens.includes(refreshToken)) {
+    return res.status(401).json({ error: "Invalid refresh token" });
+  }
+  refreshTokens = refreshTokens.filter(t => t !== refreshToken);
+  try {
+    const payload = jwt.verify(refreshToken, 'REFRESH_SECRET');
+    const user = users.find(u => u.id === payload.id);
+    const tokens = generateTokens(user);
+    refreshTokens.push(tokens.refreshToken); // Добавляем новый в список
+    res.json(tokens);
+  } catch (e) {
+    res.status(401).json({ error: "Token expired" });
+  }
 });
 
 /**
