@@ -32,18 +32,18 @@ app.use(cors({
 }));
 
 let products = [
-  { id: nanoid(6), name: "Тедди Классик",     category: "Классические", description: "Мягкий плюшевый медведь в классическом стиле с бархатными ушками.",        price: 1290, stock: 25, rating: 4.8, picture:""},
-  { id: nanoid(6), name: "Панда Чи-Чи",       category: "Панды",        description: "Очаровательная панда с чёрно-белым окрасом и большими блестящими глазами.", price: 1590, stock: 18, rating: 4.9, picture:""},
-  { id: nanoid(6), name: "Мишка Снежок",      category: "Зимние",       description: "Белоснежный медведь в вязаном шарфике. Создаёт уют в любое время года.",    price: 1890, stock: 12, rating: 4.7, picture:""},
-  { id: nanoid(6), name: "Медведь-Космонавт", category: "Тематические", description: "Плюшевый медведь в скафандре. Мечтает покорить космос вместе с вами.",      price: 2490, stock:  8, rating: 5.0, picture:""},
-  { id: nanoid(6), name: "Бурый Гриша",       category: "Классические", description: "Большой уютный медведь бурого цвета с мягким животиком. Любит объятия.",    price: 2190, stock: 15, rating: 4.6, picture:""},
-  { id: nanoid(6), name: "Радужный Тедди",    category: "Праздничные",  description: "Яркий медведь с радужной расцветкой. Поднимает настроение!",                 price: 1750, stock: 20, rating: 4.5, picture:""},
-  { id: nanoid(6), name: "Медведица Розочка", category: "Праздничные",  description: "Нежная розовая медведица с бантиком и сердечком в лапках.",                  price: 1650, stock: 22, rating: 4.8, picture:""},
-  { id: nanoid(6), name: "Полярный Ледик",    category: "Зимние",       description: "Белоснежный полярный медведь с голубыми глазами.",                           price: 2090, stock: 10, rating: 4.7, picture:""},
-  { id: nanoid(6), name: "Мини-Тедди",        category: "Маленькие",    description: "Крохотный медведик размером с ладонь. Всегда рядом!",                        price:  590, stock: 50, rating: 4.4, picture:""},
-  { id: nanoid(6), name: "Мишка-Повар",       category: "Тематические", description: "Плюшевый медведь в поварском колпаке и фартуке.",                            price: 2350, stock:  9, rating: 4.9, picture:""},
-  { id: nanoid(6), name: "Великан Боб",       category: "Большие",      description: "Огромный медведь высотой 80 см. Лучший друг для зимних вечеров.",            price: 4990, stock:  5, rating: 4.9, picture:""},
-  { id: nanoid(6), name: "Эко-Медведь Лесик", category: "Классические", description: "Из 100% переработанных материалов. Заботится о природе.",                   price: 1990, stock: 30, rating: 4.6, picture:""},
+  { id: nanoid(6), name: "Тедди Классик",     category: "Классические", description: "Мягкий плюшевый медведь в классическом стиле с бархатными ушками.",        price: 1290, stock: 25, rating: 4.8, picture:"teddy-classic.png"},
+  { id: nanoid(6), name: "Панда Чи-Чи",       category: "Панды",        description: "Очаровательная панда с чёрно-белым окрасом и большими блестящими глазами.", price: 1590, stock: 18, rating: 4.9, picture:"panda-chi-chi.png"},
+  { id: nanoid(6), name: "Мишка Снежок",      category: "Зимние",       description: "Белоснежный медведь в вязаном шарфике. Создаёт уют в любое время года.",    price: 1890, stock: 12, rating: 4.7, picture:"snezok.png"},
+  { id: nanoid(6), name: "Медведь-Космонавт", category: "Тематические", description: "Плюшевый медведь в скафандре. Мечтает покорить космос вместе с вами.",      price: 2490, stock:  8, rating: 5.0, picture:"cosmo-bear.png"},
+  { id: nanoid(6), name: "Бурый Гриша",       category: "Классические", description: "Большой уютный медведь бурого цвета с мягким животиком. Любит объятия.",    price: 2190, stock: 15, rating: 4.6, picture:"grisha.png"},
+  { id: nanoid(6), name: "Радужный Тедди",    category: "Праздничные",  description: "Яркий медведь с радужной расцветкой. Поднимает настроение!",                 price: 1750, stock: 20, rating: 4.5, picture:"rainbow.png"},
+  { id: nanoid(6), name: "Медведица Розочка", category: "Праздничные",  description: "Нежная розовая медведица с бантиком и сердечком в лапках.",                  price: 1650, stock: 22, rating: 4.8, picture:"rose.png"},
+  { id: nanoid(6), name: "Полярный Ледик",    category: "Зимние",       description: "Белоснежный полярный медведь с голубыми глазами.",                           price: 2090, stock: 10, rating: 4.7, picture:"polar-ledic.png"},
+  { id: nanoid(6), name: "Мини-Тедди",        category: "Маленькие",    description: "Крохотный медведик размером с ладонь. Всегда рядом!",                        price:  590, stock: 50, rating: 4.4, picture:"mini-teddy.png"},
+  { id: nanoid(6), name: "Мишка-Повар",       category: "Тематические", description: "Плюшевый медведь в поварском колпаке и фартуке.",                            price: 2350, stock:  9, rating: 4.9, picture:"cook-bear.png"},
+  { id: nanoid(6), name: "Великан Боб",       category: "Большие",      description: "Огромный медведь высотой 80 см. Лучший друг для зимних вечеров.",            price: 9990, stock:  5, rating: 4.9, picture:"grant-bob.png"},
+  { id: nanoid(6), name: "Эко-Медведь Лесик", category: "Классические", description: "Из 100% переработанных материалов. Заботится о природе.",                   price: 1990, stock: 30, rating: 4.6, picture:"eco-bear.png"},
 ];
 
 // Swagger definition
