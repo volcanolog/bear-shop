@@ -20,6 +20,7 @@ export const getPictureUrl = (pictureName) => {
 
 // 4. Основной объект API
 export const api = {
+  // --- ТОВАРЫ ---
   createProduct: async (product) => {
     const response = await apiClient.post("/products", product);
     return response.data;
@@ -44,7 +45,18 @@ export const api = {
     const response = await apiClient.delete(`/products/${id}`);
     return response.data;
   },
+
+  // --- АВТОРИЗАЦИЯ ---
+  register: async (userData) => {
+    // Отправляем firstName, lastName, email, password
+    const response = await apiClient.post("/auth/register", userData);
+    return response.data;
+  },
+
+  login: async (credentials) => {
+    // Отправляем email и password
+    const response = await apiClient.post("/auth/login", credentials);
+    return response.data;
+  }
 };
 
-// 5. Для совместимости, если где-то остался вызов getProducts не через объект api
-export const getProducts = api.getProducts;

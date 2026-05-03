@@ -1,0 +1,101 @@
+/* Контейнер для центрирования формы на весь экран */
+.auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #160715; /* Твой основной фон */
+    padding: 20px;
+}
+
+/* Карточка регистрации */
+.auth-card {
+    background-color: #1c0c1b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.auth-card__title {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.auth-card__subtitle {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+/* Группы полей ввода */
+.auth-form__group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auth-form__label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.auth-form__input {
+    background: #251424;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 12px;
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.auth-form__input:focus {
+  border-color: #818cf8; /* Твой акцентный цвет */
+}
+
+/* Кнопка */
+.auth-form__submit {
+    width: 100%;
+    padding: 14px;
+    background-color: #818cf8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: filter 0.2s;
+}
+
+.auth-form__submit:hover {
+    filter: brightness(1.1);
+}
+
+/* Ссылка переключения */
+.auth-footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.auth-footer__link {
+    color: #818cf8;
+    cursor: pointer;
+    font-weight: 500;
+    margin-left: 5px;
+}
+
+.auth-footer__link:hover {
+    text-decoration: underline;
+}

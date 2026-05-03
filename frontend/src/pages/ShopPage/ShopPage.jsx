@@ -5,7 +5,7 @@ import ProductsList from "../../components/ProductsList/ProductsList";
 import ProductModal from "../../components/ProductModal/ProductModal";
 import { api } from "../../api";
 
-export default function ShopPage() {
+export default function ShopPage({ onNavigate }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -82,7 +82,15 @@ export default function ShopPage() {
       <header className="header">
         <div className="header__inner">
           <div className="brand"> Медвежья лавка</div>
-          <div className="header__right">React</div>
+          <div className="header__right">
+            <button 
+              className="btn" 
+              onClick={onNavigate} 
+              style={{ marginRight: '15px', background: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }}
+            >
+              Регистрация
+            </button>
+          </div>
         </div>
       </header>
 
