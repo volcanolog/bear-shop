@@ -1,21 +1,31 @@
 import React, { useState } from "react";
 import { api } from "../../api";
-import "./RegisterPage.css"; // Импорт стилей
+import "./RegisterPage.css";
 
-export default function RegisterPage({ onNavigate }) {
+export default function RegisterPage({ onNavigate, onSuccess }) {
     const [formData, setFormData] = useState({
         firstName: "",
         lastName: "",
         email: "",
-        password: ""
+        password: "",
     });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await api.register(formData);
-            alert("Регистрация успешна!");
-            onNavigate(); 
+            const data = await api.register(formData);
+
+            // Если сервер сразу возвращает токены после регистрации —
+            // сохраняем их и входим автоматически
+            if (data && data.accessToken) {
+                localStorage.setItem("token", data.accessToken);           // ДОБАВЛЕНО
+                localStorage.setItem("refreshToken", data.refreshToken);   // ДОБАВЛЕНО
+                onSuccess(data.accessToken, data.user);
+            } else {
+                // Если сервер не вернул токены — просто переходим на логин
+                alert("Регистрация успешна! Войдите в аккаунт.");
+                onNavigate();
+            }
         } catch (error) {
             alert(error.response?.data?.error || "Ошибка при регистрации");
         }
@@ -30,43 +40,43 @@ export default function RegisterPage({ onNavigate }) {
                 <form onSubmit={handleSubmit}>
                     <div className="auth-form__group">
                         <label className="auth-form__label">Имя</label>
-                        <input 
+                        <input
                             className="auth-form__input"
                             placeholder="Иван"
                             required
-                            onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                         />
-                </div>
+                    </div>
 
                     <div className="auth-form__group">
                         <label className="auth-form__label">Фамилия</label>
-                        <input 
+                        <input
                             className="auth-form__input"
                             placeholder="Иванов"
                             required
-                            onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                         />
                     </div>
 
                     <div className="auth-form__group">
                         <label className="auth-form__label">Email</label>
-                        <input 
+                        <input
                             className="auth-form__input"
                             type="email"
                             placeholder="mail@example.com"
                             required
-                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         />
                     </div>
 
                     <div className="auth-form__group">
                         <label className="auth-form__label">Пароль</label>
-                        <input 
+                        <input
                             className="auth-form__input"
                             type="password"
                             placeholder="••••••••"
                             required
-                            onChange={(e) => setFormData({...formData, password: e.target.value})}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         />
                     </div>
 

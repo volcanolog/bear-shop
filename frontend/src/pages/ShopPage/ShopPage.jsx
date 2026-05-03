@@ -5,7 +5,6 @@ import ProductsList from "../../components/ProductsList/ProductsList";
 import ProductModal from "../../components/ProductModal/ProductModal";
 import { api } from "../../api";
 
-// В пропсах получаем user, onNavigate и onLogout из App.js
 export default function ShopPage({ onNavigate, user, onLogout }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +24,10 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
       setProducts(data);
     } catch (err) {
       console.error(err);
-      alert("Ошибка загрузки товаров");
+      // Ошибка 401 обрабатывается interceptor-ом автоматически
+      if (err.response?.status !== 401) {
+        alert("Ошибка загрузки товаров");
+      }
     } finally {
       setLoading(false);
     }
@@ -47,8 +49,6 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
     setModalOpen(false);
     setEditingProduct(null);
   };
-
-  // ЭТУ ФУНКЦИЮ handleLogout МЫ УДАЛИЛИ, ТАК КАК ИСПОЛЬЗУЕМ onLogout ИЗ ПРОПСОВ
 
   const handleDelete = async (id) => {
     const ok = window.confirm("Удалить товар?");
@@ -87,11 +87,10 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
           <div className="brand">Медвежья лавка</div>
           <div className="header__right">
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <span style={{ color: '#818cf8' }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+                <span style={{ color: "#818cf8" }}>
                   Привет, {user.firstName || user.FirstName}!
                 </span>
-                {/* ВЫЗЫВАЕМ onLogout ИЗ ПРОПСОВ */}
                 <button className="btn" onClick={onLogout}>Выйти</button>
               </div>
             ) : (
@@ -105,7 +104,6 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
         <div className="container">
           <div className="toolbar">
             <h1 className="title">Товары</h1>
-            {/* Кнопка создать видна только авторизованным */}
             {user && (
               <button className="btn btn--primary" onClick={openCreate}>
                 + Создать
@@ -118,7 +116,6 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
           ) : (
             <ProductsList
               products={products}
-              // Передаем функции управления, которые теперь защищены JWT
               onEdit={user ? openEdit : null}
               onDelete={user ? handleDelete : null}
             />

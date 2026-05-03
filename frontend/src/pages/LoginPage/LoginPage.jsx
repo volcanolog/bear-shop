@@ -11,6 +11,9 @@ const LoginPage = ({ onSuccess, onNavigate }) => {
         try {
             const data = await api.login({ email, password });
             if (data && data.accessToken) {
+                // Сохраняем ОБА токена в localStorage
+                localStorage.setItem("token", data.accessToken);
+                localStorage.setItem("refreshToken", data.refreshToken); // ДОБАВЛЕНО
                 onSuccess(data.accessToken, data.user);
             }
         } catch (err) {
@@ -20,7 +23,7 @@ const LoginPage = ({ onSuccess, onNavigate }) => {
 
     return (
         <div className="page login-page-flex">
-            <div className="modal"> {/* Используем стиль модального окна для формы */}
+            <div className="modal">
                 <div className="modal__header">
                     <span className="modal__title">Авторизация</span>
                 </div>
@@ -39,28 +42,28 @@ const LoginPage = ({ onSuccess, onNavigate }) => {
                     </label>
 
                     <label className="label">
-                            Пароль
-                            <input
-                                className="input"
-                                type="password"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
+                        Пароль
+                        <input
+                            className="input"
+                            type="password"
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
                     </label>
 
-                    <button className="btn btn--primary" type="submit" style={{marginTop: '10px'}}>
-                            Войти
+                    <button className="btn btn--primary" type="submit" style={{ marginTop: "10px" }}>
+                        Войти
                     </button>
 
-                    <div className="modal__footer" style={{justifyContent: 'center', marginTop: '15px'}}>
-                        <span style={{fontSize: '13px', opacity: 0.7}}>Нет аккаунта?</span>
-                        <button 
-                            type="button" 
-                            className="btn" 
+                    <div className="modal__footer" style={{ justifyContent: "center", marginTop: "15px" }}>
+                        <span style={{ fontSize: "13px", opacity: 0.7 }}>Нет аккаунта?</span>
+                        <button
+                            type="button"
+                            className="btn"
                             onClick={onNavigate}
-                            style={{border: 'none', padding: '0 5px', color: '#818cf8'}}
+                            style={{ border: "none", padding: "0 5px", color: "#818cf8" }}
                         >
                             Создать
                         </button>

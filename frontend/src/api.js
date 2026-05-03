@@ -10,90 +10,92 @@ export const apiClient = axios.create({
   },
 });
 
+// ─── REQUEST INTERCEPTOR ──────────────────────────────────────────────────────
+// Автоматически добавляем accessToken в каждый запрос
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token && token !== "undefined") {
-    config.headers.Authorization = `Bearer ${token}`; // Формат согласно методичке
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
+// ─── RESPONSE INTERCEPTOR ─────────────────────────────────────────────────────
 apiClient.interceptors.response.use(
-  (response) => response, // Если всё ок, просто пропускаем ответ
+  (response) => response,
   async (error) => {
+    const accessToken = localStorage.getItem("token");
+    const refreshToken = localStorage.getItem("refreshToken");
     const originalRequest = error.config;
+
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true; // Ставим метку, чтобы не зациклиться
+      originalRequest._retry = true;
+
+      // ШАГ 1: Если одного из токенов нет — позволяем ошибке сработать
+      if (!accessToken || !refreshToken) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/";  // редирект на главную, App.jsx покажет LoginPage
+        return Promise.reject(error);
+      }
+
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        const res = await axios.post("http://localhost:3000/api/auth/refresh", {
-          refreshToken: refreshToken
+        // ШАГ 2: Пробуем обновить токены
+        const res = await axios.post(`${SERVER_URL}/api/auth/refresh`, {
+          refreshToken,
         });
-        localStorage.setItem("token", res.data.accessToken);
-        localStorage.setItem("refreshToken", res.data.refreshToken);
-        originalRequest.headers.Authorization = `Bearer ${res.data.accessToken}`;
+
+        // ШАГ 3: Проверяем, не истёк ли refresh-токен
+        const isRefreshExpired = res.data.refresh_expired;
+        if (isRefreshExpired) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("refreshToken");
+          window.location.href = "/";
+          return Promise.reject(error);
+        }
+
+        // ШАГ 4: Сохраняем новые токены
+        const newAccessToken = res.data.accessToken;
+        const newRefreshToken = res.data.refreshToken; // ИСПРАВЛЕНО: было newRefreshToken
+
+        localStorage.setItem("token", newAccessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+
+        // ШАГ 5: Повторяем исходный запрос с новым токеном
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        localStorage.clear();
-        window.location.reload(); // Отправит на логин
+        // ШАГ 6: Если обновление не удалось — выходим
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/";
         return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
 
+// ─── Вспомогательная функция для картинок ─────────────────────────────────────
 export const getPictureUrl = (pictureName) => {
   if (!pictureName) return `${SERVER_URL}/pictures/no-photo.png`;
   return `${SERVER_URL}/pictures/${pictureName}`;
 };
 
+// ─── API МЕТОДЫ ───────────────────────────────────────────────────────────────
 export const api = {
   apiClient,
-  // --- ТОВАРЫ (теперь защищены токеном через интерцептор) ---
-  createProduct: async (product) => {
-    const response = await apiClient.post("/products", product);
-    return response.data;
-  },
 
-  getProducts: async () => {
-    const response = await apiClient.get("/products");
-    return response.data;
-  },
+  // Авторизация
+  login: (data) => apiClient.post("/auth/login", data).then((res) => res.data),
+  register: (data) => apiClient.post("/auth/register", data).then((res) => res.data),
+  getMe: () => apiClient.get("/auth/me").then((res) => res.data),
 
-  getProductById: async (id) => {
-    const response = await apiClient.get(`/products/${id}`);
-    return response.data;
-  },
-
-  updateProduct: async (id, product) => {
-    const response = await apiClient.patch(`/products/${id}`, product);
-    return response.data;
-  },
-
-  deleteProduct: async (id) => {
-    const response = await apiClient.delete(`/products/${id}`);
-    return response.data;
-  },
-
-  // --- АВТОРИЗАЦИЯ ---
-  register: async (userData) => {
-    const response = await apiClient.post("/auth/register", userData);
-    return response.data;
-  },
-
-  login: async (credentials) => {
-    const response = await apiClient.post("/auth/login", credentials);
-    if (response.data.accessToken && response.data.refreshToken) {
-      localStorage.setItem('token', response.data.accessToken);
-      localStorage.setItem('refreshToken', response.data.refreshToken);
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${response.data.accessToken}`;
-    }
-    return response.data; 
-  },
-
-  getMe: async () => {
-    const response = await apiClient.get("/auth/me");
-    return response.data;
-  }
+  // Товары
+  getProducts: () => apiClient.get("/products").then((res) => res.data),
+  getProductById: (id) => apiClient.get(`/products/${id}`).then((res) => res.data),
+  createProduct: (data) => apiClient.post("/products", data).then((res) => res.data),
+  updateProduct: (id, data) => apiClient.put(`/products/${id}`, data).then((res) => res.data),
+  deleteProduct: (id) => apiClient.delete(`/products/${id}`).then((res) => res.data),
 };
