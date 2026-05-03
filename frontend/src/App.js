@@ -31,19 +31,19 @@ export default function App() {
   };
 
   // 2. КРАСИВАЯ АВТОРИЗАЦИЯ (Вход -> Токен -> Данные пользователя)
-  const handleLoginSuccess = async (token, userData) => {
+const handleLoginSuccess = async (accessToken, userData, refreshToken) => {
     setIsLoggedIn(true);
-    localStorage.setItem('token', token);
-    api.apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('refreshToken', refreshToken); 
+    api.apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
     try {
         const fullProfile = await api.getMe();
         setUser(fullProfile);
-        setIsLoggedIn(true);
-        alert(`С возвращением, ${fullProfile.firstName}!`);
+        // Используем опциональную цепочку, чтобы не упасть, если firstName нет
+        alert(`С возвращением, ${fullProfile.firstName || 'пользователь'}!`);
     } catch (error) {
-        console.error("Ошибка при получении профиля после входа:", error);
+        console.error("Ошибка при получении профиля:", error);
         setUser(userData);
-        setIsLoggedIn(true);
     }
 };
 
