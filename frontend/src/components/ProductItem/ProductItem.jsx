@@ -1,9 +1,11 @@
 import React from "react";
+import { getPictureUrl } from '../../api';
 
 export default function ProductItem({ product, onEdit, onDelete }) {
   const stars =
     "★".repeat(Math.round(product.rating)) +
     "☆".repeat(5 - Math.round(product.rating));
+  const placeholder = getPictureUrl("no-photo.png");
 
   return (
     <div className="productRow">
@@ -13,7 +15,13 @@ export default function ProductItem({ product, onEdit, onDelete }) {
           {stars} <span>{product.rating}</span>
         </span>
       </div>
-
+      <div className="productImageContainer">
+        <img 
+          src={getPictureUrl(product.picture)} 
+          alt={product.name} 
+          className="productPicture" 
+        />
+      </div>
       <div className="productName">{product.name}</div>
       <div className="productDesc">{product.description}</div>
 

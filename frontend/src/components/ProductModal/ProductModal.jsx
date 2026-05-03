@@ -7,6 +7,7 @@ export default function ProductModal({ open, mode, initialProduct, onClose, onSu
   const [price, setPrice]           = useState("");
   const [stock, setStock]           = useState("");
   const [rating, setRating]         = useState("");
+  const [picture, setPicture]       = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -17,6 +18,7 @@ export default function ProductModal({ open, mode, initialProduct, onClose, onSu
     setPrice(initialProduct?.price != null ? String(initialProduct.price) : "");
     setStock(initialProduct?.stock != null ? String(initialProduct.stock) : "");
     setRating(initialProduct?.rating != null ? String(initialProduct.rating) : "");
+    setPicture(initialProduct?.picture ?? "");
   }, [open, initialProduct]);
 
   if (!open) return null;
@@ -63,6 +65,7 @@ export default function ProductModal({ open, mode, initialProduct, onClose, onSu
       price: parsedPrice,
       stock: parsedStock,
       rating: parsedRating || 0,
+      picture: picture.trim(),
     });
   };
 
@@ -101,6 +104,19 @@ export default function ProductModal({ open, mode, initialProduct, onClose, onSu
               onChange={(e) => setCategory(e.target.value)}
               placeholder="Например, Классические"
             />
+          </label>
+
+          <label className="label">
+            Имя файла картинки
+            <input
+              className="input"
+              value={picture}
+              onChange={(e) => setPicture(e.target.value)}
+              placeholder="Например, teddy.jpg"
+            />
+            <span style={{ fontSize: '10px', opacity: 0.6 }}>
+              Файл должен лежать в папке /pictures
+            </span>
           </label>
 
           <label className="label">

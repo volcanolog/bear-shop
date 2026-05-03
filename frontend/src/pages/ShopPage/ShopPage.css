@@ -122,7 +122,8 @@
 
 .productName {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
+  margin-top: 4px;
 }
 
 .productDesc {
@@ -157,6 +158,32 @@
 .productActions {
   display: flex;
   gap: 8px;
+}
+
+.productPicture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Картинка заполнит область, не искажаясь */
+  transition: transform 0.4s ease;
+  display: block;
+}
+
+.productImageContainer {
+  width: 100%;
+  height: 200px; /* Фиксированная высота, чтобы сетка была ровной */
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin: 4px 0;
+}
+
+.productPicture[src*="no-photo.png"] {   
+  opacity: 0.3;       /* Приглушаем её в тон дизайну */
+}
+
+.productRow:hover .productPicture {
+  transform: scale(1.08);
 }
 
 .footer {
