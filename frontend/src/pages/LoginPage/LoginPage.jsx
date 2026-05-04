@@ -13,8 +13,10 @@ const LoginPage = ({ onSuccess, onNavigate }) => {
             if (data && data.accessToken) {
                 // Сохраняем ОБА токена в localStorage
                 localStorage.setItem("token", data.accessToken);
-                localStorage.setItem("refreshToken", data.refreshToken); // ДОБАВЛЕНО
-                onSuccess(data.accessToken, data.user);
+                localStorage.setItem("refreshToken", data.refreshToken);
+                // Третьим аргументом отдаём refreshToken — на случай, если App.js
+                // захочет с ним что-то сделать (продублировать сохранение и т.п.).
+                onSuccess(data.accessToken, data.user, data.refreshToken);
             }
         } catch (err) {
             alert(err.response?.data?.error || "Неверный логин или пароль");

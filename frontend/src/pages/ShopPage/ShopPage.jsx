@@ -5,13 +5,42 @@ import ProductsList from "../../components/ProductsList/ProductsList";
 import ProductModal from "../../components/ProductModal/ProductModal";
 import { api } from "../../api";
 
-export default function ShopPage({ onNavigate, user, onLogout }) {
+// =============================================================================
+//  Главная страница магазина.
+// =============================================================================
+//  Что важно для практики 11 (RBAC) — на этой странице мы показываем разный
+//  набор кнопок в зависимости от роли пользователя:
+//
+//    - гость        : видит каталог в режиме «только просмотр»
+//                     (после авторизации сервер потребует token, см. /api/products),
+//                     но в этом проекте сервер требует авторизацию даже для GET,
+//                     поэтому гость увидит «Ошибка загрузки товаров» — это норма
+//                     по таблице задания.
+//    - user         : видит каталог;
+//    - seller       : + видит «Создать», «Редактировать»;
+//    - admin        : + видит «Удалить», + кнопку «Пользователи»
+//                     (управление пользователями).
+//
+//  Отрисовка кнопок — это «удобство», а не безопасность.
+//  Реальный контроль доступа делает сервер: даже если кто-то откроет devtools
+//  и вручную вызовет api.deleteProduct(...), сервер вернёт 403.
+// =============================================================================
+export default function ShopPage({ onNavigate, user, onLogout, onOpenUsers }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [editingProduct, setEditingProduct] = useState(null);
+
+  // ── Вычисляемые "права" пользователя на этой странице ─────────────────────
+  // Удобный паттерн: мы один раз считаем флаги, и ниже в JSX просто пишем
+  // {canCreate && <button>...}, не повторяя сравнение role в десяти местах.
+  const role = user?.role;
+  const canCreate = role === "seller" || role === "admin";
+  const canEdit   = role === "seller" || role === "admin";
+  const canDelete = role === "admin";
+  const isAdmin   = role === "admin";
 
   useEffect(() => {
     loadProducts();
@@ -24,7 +53,9 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
       setProducts(data);
     } catch (err) {
       console.error(err);
-      // Ошибка 401 обрабатывается interceptor-ом автоматически
+      // 401 — это нормально для неавторизованного пользователя.
+      // Interceptor попробует обновить токен. Если откатилось до 401 — значит
+      // пользователь не авторизован, и мы просто оставляем пустой список.
       if (err.response?.status !== 401) {
         alert("Ошибка загрузки товаров");
       }
@@ -51,8 +82,7 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
   };
 
   const handleDelete = async (id) => {
-    const ok = window.confirm("Удалить товар?");
-    if (!ok) return;
+    if (!window.confirm("Удалить товар?")) return;
     try {
       await api.deleteProduct(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
@@ -80,6 +110,13 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
     }
   };
 
+  // Метка роли для шапки — чтобы пользователь видел, под кем он зашёл.
+  const roleLabel = {
+    user: "Пользователь",
+    seller: "Продавец",
+    admin: "Администратор",
+  }[role];
+
   return (
     <div className="page">
       <header className="header">
@@ -90,7 +127,18 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
               <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
                 <span style={{ color: "#818cf8" }}>
                   Привет, {user.firstName || user.FirstName}!
+                  {roleLabel && (
+                    <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.7 }}>
+                      ({roleLabel})
+                    </span>
+                  )}
                 </span>
+
+                {/* Кнопка "Пользователи" — только админу */}
+                {isAdmin && onOpenUsers && (
+                  <button className="btn" onClick={onOpenUsers}>Пользователи</button>
+                )}
+
                 <button className="btn" onClick={onLogout}>Выйти</button>
               </div>
             ) : (
@@ -104,7 +152,8 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
         <div className="container">
           <div className="toolbar">
             <h1 className="title">Товары</h1>
-            {user && (
+            {/* Создавать может seller и admin */}
+            {canCreate && (
               <button className="btn btn--primary" onClick={openCreate}>
                 + Создать
               </button>
@@ -116,8 +165,10 @@ export default function ShopPage({ onNavigate, user, onLogout }) {
           ) : (
             <ProductsList
               products={products}
-              onEdit={user ? openEdit : null}
-              onDelete={user ? handleDelete : null}
+              // Передаём в карточку только те колбэки, которые разрешены роли.
+              // ProductItem сам решит, какие кнопки рисовать (по наличию пропа).
+              onEdit={canEdit ? openEdit : null}
+              onDelete={canDelete ? handleDelete : null}
             />
           )}
         </div>

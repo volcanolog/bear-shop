@@ -84,18 +84,34 @@ export const getPictureUrl = (pictureName) => {
 };
 
 // ─── API МЕТОДЫ ───────────────────────────────────────────────────────────────
+// Удобная обёртка над apiClient: один объект — все вызовы серверного API.
+// Ошибки 401 здесь не обрабатываются — это работа interceptor-а выше.
 export const api = {
   apiClient,
 
-  // Авторизация
+  // ── Авторизация / профиль ──────────────────────────────────────────────────
   login: (data) => apiClient.post("/auth/login", data).then((res) => res.data),
   register: (data) => apiClient.post("/auth/register", data).then((res) => res.data),
+  // /auth/me возвращает текущего пользователя ВКЛЮЧАЯ роль (role).
+  // На фронте именно отсюда мы узнаём, что показывать пользователю
+  // (кнопки «Создать», «Удалить», «Пользователи» и т.д.).
   getMe: () => apiClient.get("/auth/me").then((res) => res.data),
 
-  // Товары
+  // ── Товары ─────────────────────────────────────────────────────────────────
   getProducts: () => apiClient.get("/products").then((res) => res.data),
   getProductById: (id) => apiClient.get(`/products/${id}`).then((res) => res.data),
   createProduct: (data) => apiClient.post("/products", data).then((res) => res.data),
+  // По заданию обновление товара должно идти через PUT.
   updateProduct: (id, data) => apiClient.put(`/products/${id}`, data).then((res) => res.data),
   deleteProduct: (id) => apiClient.delete(`/products/${id}`).then((res) => res.data),
+
+  // ── Управление пользователями (только admin) ───────────────────────────────
+  // На сервере все эти эндпоинты защищены roleMiddleware([ADMIN]),
+  // т.е. если их случайно вызовет не-админ — придёт 403, и фронт это
+  // покажет. Но мы дополнительно прячем кнопки на UI.
+  getUsers: () => apiClient.get("/users").then((res) => res.data),
+  getUserById: (id) => apiClient.get(`/users/${id}`).then((res) => res.data),
+  updateUser: (id, data) => apiClient.put(`/users/${id}`, data).then((res) => res.data),
+  // DELETE на сервере = блокировка пользователя (мягкое удаление).
+  blockUser: (id) => apiClient.delete(`/users/${id}`).then((res) => res.data),
 };

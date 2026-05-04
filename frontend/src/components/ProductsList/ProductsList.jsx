@@ -1,6 +1,12 @@
 import React from "react";
 import ProductItem from "../ProductItem/ProductItem";
 
+// =============================================================================
+//  Список товаров — обычный «дамб»-компонент.
+//  Просто пробрасывает onEdit / onDelete в каждую карточку.
+//  Если onEdit/onDelete = null (роль не позволяет), карточка не покажет
+//  соответствующую кнопку — см. комментарии в ProductItem.
+// =============================================================================
 export default function ProductsList({ products, onEdit, onDelete }) {
   if (products.length === 0) {
     return (

@@ -18,9 +18,10 @@ export default function RegisterPage({ onNavigate, onSuccess }) {
             // Если сервер сразу возвращает токены после регистрации —
             // сохраняем их и входим автоматически
             if (data && data.accessToken) {
-                localStorage.setItem("token", data.accessToken);           // ДОБАВЛЕНО
-                localStorage.setItem("refreshToken", data.refreshToken);   // ДОБАВЛЕНО
-                onSuccess(data.accessToken, data.user);
+                localStorage.setItem("token", data.accessToken);
+                localStorage.setItem("refreshToken", data.refreshToken);
+                // Третьим аргументом отдаём refreshToken — для совместимости с App.js
+                onSuccess(data.accessToken, data.user, data.refreshToken);
             } else {
                 // Если сервер не вернул токены — просто переходим на логин
                 alert("Регистрация успешна! Войдите в аккаунт.");
