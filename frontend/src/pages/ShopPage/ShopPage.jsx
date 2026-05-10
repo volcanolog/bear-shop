@@ -42,9 +42,19 @@ export default function ShopPage({ onNavigate, user, onLogout, onOpenUsers }) {
   const canDelete = role === "admin";
   const isAdmin   = role === "admin";
 
+  // Грузим товары ТОЛЬКО если пользователь авторизован.
+  // Это требование задания: GET /api/products = «Пользователь» (любая роль),
+  // т.е. для гостя сервер вернёт 401. Если бы мы безусловно делали запрос,
+  // получили бы цикл «401 → обновить токен → 401 → ...».
+  // Зависимость useEffect по user — после логина товары подгрузятся сами.
   useEffect(() => {
-    loadProducts();
-  }, []);
+    if (user) {
+      loadProducts();
+    } else {
+      setProducts([]);
+      setLoading(false);
+    }
+  }, [user]);
 
   const loadProducts = async () => {
     try {
@@ -53,9 +63,6 @@ export default function ShopPage({ onNavigate, user, onLogout, onOpenUsers }) {
       setProducts(data);
     } catch (err) {
       console.error(err);
-      // 401 — это нормально для неавторизованного пользователя.
-      // Interceptor попробует обновить токен. Если откатилось до 401 — значит
-      // пользователь не авторизован, и мы просто оставляем пустой список.
       if (err.response?.status !== 401) {
         alert("Ошибка загрузки товаров");
       }
@@ -162,6 +169,19 @@ export default function ShopPage({ onNavigate, user, onLogout, onOpenUsers }) {
 
           {loading ? (
             <div className="empty">Загрузка...</div>
+          ) : !user ? (
+            // Гость: каталог защищён авторизацией (см. таблицу из задания).
+            // Показываем приглашение войти, а не пустой экран.
+            <div className="empty" style={{ textAlign: "center" }}>
+              <p>Чтобы увидеть каталог, войдите или зарегистрируйтесь.</p>
+              <button
+                className="btn btn--primary"
+                style={{ marginTop: 12 }}
+                onClick={onNavigate}
+              >
+                Войти / Зарегистрироваться
+              </button>
+            </div>
           ) : (
             <ProductsList
               products={products}

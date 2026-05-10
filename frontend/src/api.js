@@ -21,6 +21,20 @@ apiClient.interceptors.request.use((config) => {
 });
 
 // ─── RESPONSE INTERCEPTOR ─────────────────────────────────────────────────────
+//
+//  Логика на каждый ответ:
+//    1) если ответ нормальный — отдаём как есть;
+//    2) если пришёл 401 и есть оба токена — пытаемся «тихо» обновить пару
+//       через /auth/refresh и повторить исходный запрос;
+//    3) если токенов нет ИЛИ обновление не удалось — чистим хранилище
+//       и просто реджектим ошибку. ВАЖНО: НЕ делаем window.location.href —
+//       это вызывало перезагрузку страницы, после которой ShopPage снова
+//       сразу запрашивал /api/products → снова 401 → снова перезагрузка.
+//       Получался вечный цикл.
+//
+//  React-приложение само разберётся: App.js увидит, что getMe не сработал,
+//  установит user = null, ShopPage перестанет грузить товары и покажет
+//  приглашение войти.
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -28,47 +42,39 @@ apiClient.interceptors.response.use(
     const refreshToken = localStorage.getItem("refreshToken");
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // ШАГ 1: Если одного из токенов нет — позволяем ошибке сработать
+      // ШАГ 1: Если хотя бы одного токена нет — пользователь не авторизован.
+      // Просто отдаём ошибку наверх. Никаких редиректов.
       if (!accessToken || !refreshToken) {
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/";  // редирект на главную, App.jsx покажет LoginPage
         return Promise.reject(error);
       }
 
       try {
-        // ШАГ 2: Пробуем обновить токены
+        // ШАГ 2: Пробуем обновить токены.
+        // Делаем «голым» axios, а не apiClient — иначе при 401 во время
+        // refresh мы рекурсивно влетели бы в interceptor.
         const res = await axios.post(`${SERVER_URL}/api/auth/refresh`, {
           refreshToken,
         });
 
-        // ШАГ 3: Проверяем, не истёк ли refresh-токен
-        const isRefreshExpired = res.data.refresh_expired;
-        if (isRefreshExpired) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          window.location.href = "/";
-          return Promise.reject(error);
-        }
-
-        // ШАГ 4: Сохраняем новые токены
+        // ШАГ 3: Сохраняем новую пару токенов.
         const newAccessToken = res.data.accessToken;
-        const newRefreshToken = res.data.refreshToken; // ИСПРАВЛЕНО: было newRefreshToken
-
+        const newRefreshToken = res.data.refreshToken;
         localStorage.setItem("token", newAccessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
 
-        // ШАГ 5: Повторяем исходный запрос с новым токеном
+        // ШАГ 4: Повторяем исходный запрос с новым токеном.
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // ШАГ 6: Если обновление не удалось — выходим
+        // ШАГ 5: Refresh не удался — сессия закончилась.
+        // Чистим токены и реджектим ошибку (без редиректа).
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/";
         return Promise.reject(refreshError);
       }
     }
