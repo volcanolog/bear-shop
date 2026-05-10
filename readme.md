@@ -407,3 +407,111 @@
         - Изменить текст в content/about.html, обновить страницу онлайн —
           увидеть свежую версию (Network First). Уйти в офлайн — увидеть
           последнюю кэшированную копию.
+
+Практическая работа №16: WebSocket (Socket.IO) + Web Push
+
+Цель: Добавить в приложение «Заметки» серверную часть с двусторонним обменом
+в реальном времени (через WebSocket / Socket.IO) и доставкой push-уведомлений
+браузеру даже когда вкладка закрыта.
+
+Что добавлено:
+
+    Серверная часть `notes-server/` (новый модуль):
+        server.js     — Express + Socket.IO + web-push.
+            * Раздаёт статику клиента из ../notes-app.
+            * Эндпоинт GET /vapidPublicKey  — возвращает публичный VAPID-ключ.
+            * Эндпоинт POST /subscribe      — сохраняет push-подписку (Map по endpoint).
+            * Эндпоинт POST /unsubscribe    — удаляет подписку по endpoint.
+            * WebSocket: при событии `newTask` от клиента
+                a) рассылает `taskAdded` всем клиентам через io.emit;
+                b) шлёт push всем подписчикам через webpush.sendNotification.
+            * Удаляет «протухшие» подписки при ответе 404/410 от push-сервиса.
+
+        scripts/generate-vapid.js — генератор пары VAPID-ключей.
+            Запускается командой `npm run vapid`. Если .env уже существует,
+            кладёт новые ключи в .env.new (чтобы случайно не потерять рабочие).
+
+        package.json — зависимости (express, socket.io, web-push, body-parser, cors, dotenv).
+            Скрипты: `npm start`, `npm run dev` (Node 24 --watch), `npm run vapid`.
+
+        .env.example — шаблон переменных. Реальный .env в .gitignore.
+
+    Изменения в клиенте `notes-app/`:
+        index.html
+            * Кнопки <button id="enable-push"> / <button id="disable-push">
+              добавлены в каркас (footer.push-controls), чтобы быть видны
+              на всех вкладках App Shell.
+            * Подключена клиентская библиотека Socket.IO с CDN
+              (`https://cdn.socket.io/4.7.5/socket.io.min.js`) с проверкой
+              SRI integrity. Версия совпадает с серверной (4.7.x).
+
+        app.js
+            * Автоопределение SERVER_URL: пустая строка, если страница
+              открыта самим notes-server (порт 3001), иначе явный URL.
+            * Подключение WebSocket: `socket = io(SERVER_URL || undefined)`,
+              обработчики connect/disconnect/connect_error.
+            * Обработчик `socket.on('taskAdded')` показывает кратковременный
+              toast в правом верхнем углу.
+            * В обработчике form.submit: после сохранения в localStorage
+              вызывается `socket.emit('newTask', { text, timestamp })`.
+            * urlBase64ToUint8Array — конвертер VAPID base64-url → Uint8Array
+              (формат, требуемый PushManager.subscribe).
+            * fetchVapidPublicKey — получает публичный ключ от сервера,
+              чтобы клиенту не приходилось его хардкодить.
+            * subscribeToPush:
+                - проверяет support (serviceWorker, PushManager);
+                - получает publicKey;
+                - registration.pushManager.subscribe({ userVisibleOnly: true,
+                  applicationServerKey });
+                - POST /subscribe с подпиской.
+            * unsubscribeFromPush — POST /unsubscribe + subscription.unsubscribe().
+            * Логика кнопок: проверка Notification.permission, запрос
+              разрешения через requestPermission(), переключение видимости.
+
+        sw.js (поднята версия app-shell с v3 на v4)
+            * Обработчик 'push':
+                - читает event.data через .json() (с fallback на text());
+                - showNotification(title, { body, icon, badge, tag, renotify, data }).
+            * Обработчик 'notificationclick':
+                - notification.close();
+                - clients.matchAll → focus или openWindow на ./
+
+    Безопасность и секреты:
+        - .env с приватным VAPID-ключом исключён из репозитория (.gitignore).
+        - В клиенте используется только ПУБЛИЧНЫЙ ключ, полученный
+          через GET /vapidPublicKey. Приватный никогда не покидает сервер.
+
+    Запуск и тестирование:
+        cd notes-server
+        npm install
+        npm run vapid      # один раз — создаёт .env с VAPID-ключами
+        npm start          # запускает сервер на http://localhost:3001
+        # затем в браузере: http://localhost:3001/
+
+        Проверка:
+        1. Открыть приложение в двух вкладках браузера.
+        2. В первой вкладке нажать «Включить уведомления», разрешить.
+        3. Добавить задачу в первой вкладке.
+           — Во второй вкладке появится toast (через WebSocket).
+           — Если первую вкладку свернуть/закрыть — придёт системное push.
+        4. «Отключить уведомления» — push перестают приходить, toast (WebSocket)
+           продолжает работать.
+
+    Что важно для экзамена:
+        - WebSocket — постоянное двустороннее соединение поверх TCP, в отличие
+          от HTTP «запрос-ответ». Сервер может слать данные клиенту в любой момент.
+        - Socket.IO — обёртка над WebSocket: автореконнект, fallback на long-polling,
+          именованные события (emit/on), broadcast, rooms/namespaces.
+        - Push API — отдельный механизм: уведомления приходят даже при закрытой
+          вкладке. Браузер пробуждает Service Worker, тот через
+          self.registration.showNotification() рисует уведомление.
+        - VAPID (RFC 8292) — стандарт идентификации сервера в push-сервисах.
+          Пара EC P-256 ключей: публичный → клиенту → push-сервис, приватный
+          подписывает запросы web-push'а к push-сервису. Без VAPID push не примут.
+        - userVisibleOnly: true — обязательное требование браузеров: каждое
+          push-сообщение должно сопровождаться видимым уведомлением.
+        - Notification.permission: 'default' / 'granted' / 'denied'.
+          Запрос разрешения — Notification.requestPermission() (Promise).
+        - Хранение подписок: на сервере (БД для production, Map для учебной),
+          уникальность по subscription.endpoint.
+        - Протухшие подписки удалять по 404/410 ответам push-сервиса.

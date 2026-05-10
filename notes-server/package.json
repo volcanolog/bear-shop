@@ -1,0 +1,23 @@
+{
+  "name": "notes-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Серверная часть для практики 16: Express + Socket.IO + web-push. Раздаёт notes-app и обрабатывает push/WebSocket.",
+  "main": "server.js",
+  "scripts": {
+    "//-start":  "Запуск сервера. Перед первым запуском выполнить `npm run vapid` чтобы создать .env с ключами.",
+    "start": "node server.js",
+    "//-dev":    "То же, но с авто-перезапуском при изменениях (Node 24 умеет --watch встроенно — внешние пакеты не нужны).",
+    "dev": "node --watch server.js",
+    "//-vapid":  "Сгенерировать пару VAPID-ключей и записать их в .env. Если .env уже есть, пишем в .env.new чтобы случайно не перезатереть рабочие ключи.",
+    "vapid": "node scripts/generate-vapid.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "web-push": "^3.6.7"
+  }
+}
