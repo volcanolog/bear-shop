@@ -280,3 +280,58 @@
         Проверка: DevTools → Application → Service Workers (статус «activated»),
         Cache Storage → notes-cache-v1. Затем Network → Offline → Reload —
         страница и заметки продолжают работать.
+
+Практическая работа №14: Web App Manifest (PWA)
+
+Цель: Превратить офлайн-приложение «Заметки» из практики 13 в полноценное Progressive Web App, которое можно установить на устройство, запустить в отдельном окне и интегрировать с операционной системой.
+
+Что добавлено в модуль `notes-app/`:
+
+    Файл `notes-app/manifest.json` со следующими полями:
+        name             — «Мои заметки — офлайн PWA» (полное имя в установке).
+        short_name       — «Заметки» (под иконкой на главном экране).
+        description      — текст для магазинов приложений и подсказок.
+        start_url        — `./?utm_source=pwa` (UTM-метка отслеживает запуски через PWA).
+        scope            — `./` (какие страницы считаются частью приложения).
+        display          — `standalone` (запуск без UI браузера, как обычное приложение).
+        orientation      — `portrait-primary` (фиксируем книжную ориентацию).
+        background_color — `#ffffff` (цвет splash screen, до загрузки JS).
+        theme_color      — `#4285f4` (цвет адресной строки и панели задач PWA).
+        icons[]          — 9 PNG-иконок от 16x16 до 512x512.
+                           У 512x512 указано `purpose: "any maskable"` —
+                           значит ОС может обрезать её под форму своих иконок (круг и т.п.).
+        lang/dir         — `ru` / `ltr`.
+
+    Набор иконок `notes-app/icons/`:
+        Сгенерированы скриптом `notes-app/scripts/generate-icons.ps1` через
+        .NET-классы System.Drawing (без сторонних зависимостей):
+        16, 32, 48, 64, 128, 152, 192, 256, 512 пикселей.
+        Дизайн: синий фон #4285f4 со скруглёнными углами + белая буква «Н» по центру.
+        Перегенерация: `powershell -ExecutionPolicy Bypass -File .\notes-app\scripts\generate-icons.ps1`.
+
+    Подключение в `index.html` (блок PWA в `<head>`):
+        <link rel="manifest" href="./manifest.json">     — главная связь с манифестом.
+        <meta name="theme-color">                         — синхронизирован с манифестом.
+        <meta name="mobile-web-app-capable" content="yes"> — Android: запуск без UI браузера.
+        <meta name="apple-mobile-web-app-capable">         — iOS: то же, но Safari читает только этот тег.
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Заметки"> — имя под иконкой на iOS.
+        <link rel="apple-touch-icon" href="./icons/icon-152x152.png"> — iOS не читает icons[] из манифеста.
+        <link rel="icon" sizes="32x32" /> и <link rel="icon" sizes="16x16" /> — favicon для вкладки.
+
+    Service Worker `sw.js` (обновлён до v2):
+        CACHE_VERSION поднят с `v1` до `v2` — это триггер для события `activate`,
+        в котором старый кэш `notes-cache-v1` будет удалён, а новый собран заново
+        с уже расширенным набором ресурсов.
+        В ASSETS добавлены: `./manifest.json` и все 9 файлов из `./icons/`.
+        Это гарантирует, что установленное PWA, запущенное офлайн,
+        получит и манифест, и все иконки из кэша.
+
+    Тестирование (DevTools → Application):
+        - Manifest: видны все поля и иконки 16-512 без ошибок.
+        - Service Workers: статус «activated and is running», версия v2.
+        - Cache Storage → notes-cache-v2: 13 файлов (HTML/JS/manifest + 9 иконок).
+        - Network → Offline → Reload: приложение запускается из кэша.
+        - В адресной строке Chrome появляется значок «Установить приложение».
+        - После установки PWA открывается в отдельном окне без UI браузера,
+          ярлык с иконкой попадает в меню «Пуск» / на рабочий стол.

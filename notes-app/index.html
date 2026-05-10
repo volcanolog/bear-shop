@@ -25,7 +25,68 @@
       сразу указывать viewport полезна.
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Заметки — Service Worker (практика 13)</title>
+    <title>Заметки — PWA (практика 13–14)</title>
+
+    <!-- =========================================================
+         БЛОК PWA (Практика №14): подключение Web App Manifest
+         и метатегов для интеграции с операционными системами.
+         ========================================================= -->
+
+    <!--
+      <link rel="manifest"> — главная связь между HTML и manifest.json.
+      Браузер прочитает этот JSON и узнает: имя приложения, иконки,
+      цвета, режим запуска. Без этой строки PWA «не соберётся»,
+      даже если manifest.json существует.
+    -->
+    <link rel="manifest" href="./manifest.json">
+
+    <!--
+      theme-color — цвет, который ОС использует для адресной строки
+      (на Android), панели задач установленного PWA, splash screen.
+      Должен совпадать с "theme_color" в манифесте, иначе будет «прыжок».
+    -->
+    <meta name="theme-color" content="#4285f4">
+
+    <!--
+      mobile-web-app-capable (старое имя apple-mobile-web-app-capable)
+      говорит мобильному браузеру: «при добавлении на главный экран
+      запускай в режиме веб-приложения, без UI браузера».
+      Современный аналог — поле "display": "standalone" в манифесте,
+      но Safari на iOS до сих пор смотрит на этот метатег.
+    -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <!--
+      Стиль строки состояния iOS, когда PWA запущено в standalone-режиме.
+      black-translucent делает её прозрачной поверх контента — современный вид.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!--
+      Имя, которое iOS подпишет под иконкой на главном экране.
+      Если не указать — Safari возьмёт title (он длиннее и обрежется).
+    -->
+    <meta name="apple-mobile-web-app-title" content="Заметки">
+
+    <!--
+      Apple touch icon — iOS не читает icons[] из манифеста,
+      поэтому ему нужен отдельный <link>. 152x152 — оптимальный размер
+      для iPad, iOS подгонит его под нужное разрешение сам.
+    -->
+    <link rel="apple-touch-icon" href="./icons/icon-152x152.png">
+
+    <!--
+      Стандартный favicon: вкладка браузера, история, закладки.
+      Указываем несколько размеров — браузер сам выберет подходящий
+      под текущий dpi экрана.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon-16x16.png">
+
+    <!-- =========================================================
+         КОНЕЦ БЛОКА PWA. Дальше — обычные ресурсы страницы.
+         ========================================================= -->
 
     <!--
       Подключаем Chota — лёгкий CSS-фреймворк (1 файл).
