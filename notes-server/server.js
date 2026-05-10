@@ -128,6 +128,114 @@ app.post('/unsubscribe', (req, res) => {
 });
 
 
+/* ---------- 3.5. Хранилище запланированных НАПОМИНАНИЙ (практика 17) ---------- */
+//
+// Структура: Map<reminderId, { timeoutId, text, reminderTime }>
+//   - reminderId    — id заметки, который клиент сгенерировал через Date.now();
+//   - timeoutId     — возвращается setTimeout, нужен чтобы потом clearTimeout;
+//   - text          — текст напоминания, чтобы повторить его при снузе;
+//   - reminderTime  — UNIX-ms, на которое запланировано срабатывание.
+//
+// ВАЖНО: setTimeout живёт ТОЛЬКО в памяти этого процесса. Если сервер
+// перезапустить, все таймеры пропадут. В production используют persistent
+// очереди (Bull/BullMQ + Redis, Agenda + MongoDB), а планировщик читает
+// задачи из БД. Для учебной задачи in-memory достаточно.
+//
+// MAX_TIMEOUT — ограничение setTimeout: число должно влезать в signed 32-bit.
+// Если задержка больше 2^31-1 ms (~24.8 дня), Node предупредит и выполнит
+// колбэк сразу. Поэтому проверяем delay вручную и отказываем в таких случаях.
+const reminders   = new Map();
+const MAX_TIMEOUT = 2_147_483_647; // 2^31 - 1 миллисекунд ≈ 24.85 суток
+
+/**
+ * Запланировать push-уведомление на момент времени.
+ * @param {object} params { id, text, reminderTime } — id и время в UNIX-ms
+ * @returns {boolean} false если задача уже в прошлом или слишком далеко в будущем
+ */
+function scheduleReminder({ id, text, reminderTime }) {
+    const delay = reminderTime - Date.now();
+    if (delay <= 0) {
+        console.warn(`[reminder] reminder ${id}: время уже прошло, пропускаем`);
+        return false;
+    }
+    if (delay > MAX_TIMEOUT) {
+        console.warn(`[reminder] reminder ${id}: задержка > 24.8 дней, не поддерживается`);
+        return false;
+    }
+
+    // Если по этому id уже есть таймер — отменяем старый, чтобы не было дублей.
+    if (reminders.has(id)) {
+        clearTimeout(reminders.get(id).timeoutId);
+    }
+
+    const timeoutId = setTimeout(() => {
+        console.log(`[reminder] срабатывает ${id}: «${text}»`);
+        sendPushToAll({
+            title: '🔔 Напоминание',
+            body:  text,
+            reminderId: id,
+        });
+        // После срабатывания запись больше не нужна — освобождаем память.
+        // Если пользователь нажмёт «Отложить на 5 минут», мы создадим новую
+        // запись в обработчике /snooze.
+        reminders.delete(id);
+    }, delay);
+
+    reminders.set(id, { timeoutId, text, reminderTime });
+    console.log(`[reminder] запланирован ${id} на ${new Date(reminderTime).toLocaleString()}`);
+    return true;
+}
+
+
+/* ---------- 3.6. POST /snooze — отложить напоминание на 5 минут ---------- */
+//
+// Service Worker шлёт сюда POST, когда пользователь нажимает action-кнопку
+// на push-уведомлении. reminderId передаётся в query (как в методичке).
+//
+// Алгоритм:
+//   1. Найти существующее напоминание в Map. Если нет — 404.
+//   2. clearTimeout — отменить уже запланированный таймер.
+//   3. setTimeout на +5 минут с тем же текстом.
+//
+// Важный нюанс: при срабатывании ОРИГИНАЛЬНОГО таймера запись удаляется
+// из Map (см. scheduleReminder). Если пользователь нажмёт snooze ДО
+// срабатывания — запись ещё в Map, всё отлично. Если уже срабатывало
+// и пришло уведомление с action — запись могла быть удалена; в таком
+// случае мы вернём 404 и зальём это в логах.
+
+const SNOOZE_MS = 5 * 60 * 1000; // 5 минут
+
+app.post('/snooze', (req, res) => {
+    // reminderId приходит в query: /snooze?reminderId=12345
+    // parseInt с radix=10 — общая хорошая практика.
+    const reminderId = parseInt(req.query.reminderId, 10);
+    if (!reminderId || !reminders.has(reminderId)) {
+        console.warn(`[snooze] reminder ${reminderId} не найден`);
+        return res.status(404).json({ error: 'Reminder not found' });
+    }
+
+    const old = reminders.get(reminderId);
+    clearTimeout(old.timeoutId);
+
+    // Перепланируем на +5 минут от ТЕКУЩЕГО момента (а не от старого reminderTime).
+    const newReminderTime = Date.now() + SNOOZE_MS;
+    const ok = scheduleReminder({
+        id: reminderId,
+        text: old.text,
+        reminderTime: newReminderTime,
+    });
+    if (!ok) {
+        return res.status(500).json({ error: 'Failed to schedule snooze' });
+    }
+
+    console.log(`[snooze] reminder ${reminderId} → +5 минут`);
+    res.status(200).json({
+        message: 'Reminder snoozed for 5 minutes',
+        reminderTime: newReminderTime,
+    });
+});
+
+
 /* ---------- 4. Socket.IO: WebSocket-обмен в реальном времени ---------- */
 
 // Создаём http.Server вручную, чтобы прицепить Socket.IO.
@@ -160,6 +268,27 @@ io.on('connection', (socket) => {
                 body:  task && task.text ? String(task.text) : 'Без текста',
             });
         }
+    });
+
+    // ===== Практика 17: планирование напоминания на конкретное время =====
+    // Клиент шлёт { id, text, reminderTime }. Мы НЕ рассылаем сразу
+    // (в отличие от newTask), а откладываем push до reminderTime через
+    // setTimeout. id используется и при snooze для поиска таймера.
+    socket.on('newReminder', (reminder) => {
+        console.log('[ws] newReminder from', socket.id, '·', reminder);
+        if (!reminder || !reminder.id || !reminder.text || !reminder.reminderTime) {
+            console.warn('[ws] newReminder: некорректные поля');
+            return;
+        }
+        if (!PUSH_ENABLED) {
+            console.warn('[ws] newReminder: push не настроен — напоминание не сработает');
+            return;
+        }
+        scheduleReminder({
+            id:           Number(reminder.id),
+            text:         String(reminder.text),
+            reminderTime: Number(reminder.reminderTime),
+        });
     });
 
     socket.on('disconnect', (reason) => {

@@ -515,3 +515,78 @@
         - Хранение подписок: на сервере (БД для production, Map для учебной),
           уникальность по subscription.endpoint.
         - Протухшие подписки удалять по 404/410 ответам push-сервиса.
+
+Практическая работа №17: Детализация Push (напоминания + snooze)
+
+Цель: Расширить push-функционал — заметки с конкретным временем напоминания,
+запланированные на сервере, и возможность отложить уведомление на 5 минут
+прямо из шторки уведомлений (action-кнопка).
+
+Что добавлено:
+
+    Клиент `notes-app/`:
+        content/home.html
+            * Вторая форма #reminder-form: текстовое поле + <input type="datetime-local">.
+            * datetime-local — нативный пикер даты/времени, возвращает строку
+              в локальном времени без зоны (например '2026-05-10T17:30').
+            * Конвертация в UNIX-ms: `new Date(value).getTime()`.
+
+        app.js
+            * Структура заметки расширена полем reminder (UNIX-ms или null).
+            * Универсальная addNote(text, reminderTimestamp = null):
+                - сохраняет в localStorage с уникальным id (Date.now);
+                - если reminderTimestamp есть → socket.emit('newReminder', {id,text,reminderTime});
+                - иначе → socket.emit('newTask', ...) как раньше.
+            * Валидация: reminder в прошлом — alert и отказ.
+            * В render() заметки с reminder подсвечены бейджем «🔔 <дата>».
+
+        index.html
+            * Добавлен стиль .reminder-badge (жёлтая «таблетка» рядом с текстом).
+
+        sw.js (версия app-shell поднята v4 → v5)
+            * Обработчик 'push':
+                - извлекает reminderId из payload;
+                - tag индивидуальный (`reminder-${reminderId}`), чтобы разные
+                  напоминания не схлопывались в одно;
+                - actions: [{ action: 'snooze', title: 'Отложить на 5 минут' }]
+                  добавляются ТОЛЬКО для уведомлений с reminderId;
+                - reminderId сохранён в notification.data.
+            * Обработчик 'notificationclick':
+                - if (event.action === 'snooze') → POST /snooze?reminderId=...;
+                - иначе — закрыть уведомление и сфокусировать вкладку приложения.
+
+    Сервер `notes-server/`:
+        server.js
+            * Map<reminderId, { timeoutId, text, reminderTime }> — хранилище
+              запланированных напоминаний.
+            * scheduleReminder({id, text, reminderTime}):
+                - проверяет delay > 0 и delay ≤ 2^31-1 ms (~24.85 суток —
+                  ограничение setTimeout);
+                - clearTimeout если по этому id уже был таймер;
+                - setTimeout с колбэком, который шлёт push всем подписчикам
+                  с payload { title:'🔔 Напоминание', body:text, reminderId };
+                - после срабатывания удаляет запись из Map.
+            * Обработчик socket.on('newReminder') — валидирует поля и зовёт
+              scheduleReminder.
+            * POST /snooze?reminderId=...:
+                - находит запись, делает clearTimeout старого таймера;
+                - вызывает scheduleReminder с reminderTime = Date.now() + 5*60*1000.
+
+    Что важно для экзамена:
+        - notification.actions[] — массив { action, title, icon? }, рисуется
+          под текстом уведомления. Ограничение: Chrome показывает максимум
+          2 кнопки, лишние игнорируются.
+        - В обработчике notificationclick event.action содержит идентификатор
+          нажатой кнопки или '' если кликнули по самому уведомлению.
+        - notification.data — произвольный объект, переживает уведомление и
+          доступен в notificationclick через event.notification.data.
+        - tag — лишает уведомление прежнего, если новое пришло с тем же тегом.
+          renotify:true заставит браузер вибрировать/пикнуть снова.
+        - setTimeout/setInterval живут только в памяти процесса — рестарт
+          сервера = потеря всех таймеров. В production: persistent очереди
+          (Bull/BullMQ + Redis, Agenda + Mongo, или pg-boss).
+        - setTimeout в Node ограничен 32-битным signed int (~24.85 дня).
+          На больший интервал нужно дробить.
+        - Из Service Worker fetch уходит на тот же origin, на котором лежит
+          SW. Поэтому путь /snooze резолвится правильно, когда приложение
+          и сервер на одном домене (как у нас — notes-server раздаёт notes-app).

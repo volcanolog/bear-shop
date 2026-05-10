@@ -40,7 +40,9 @@
 //   v3 — практика 15: разделили оболочку и контент, добавили content/.
 //   v4 — практика 16: добавлены обработчики push и notificationclick,
 //        обновлены кнопки в index.html (enable-push / disable-push).
-const APP_SHELL_CACHE = 'app-shell-v4';
+//   v5 — практика 17: push с action-кнопкой «Отложить на 5 минут»
+//        и обработчик snooze (fetch /snooze) в notificationclick.
+const APP_SHELL_CACHE = 'app-shell-v5';
 
 // Версия динамического кэша. Здесь версия отдельная, потому что
 // /content/* меняется чаще, чем ASSETS, и его удобно инвалидировать
@@ -266,13 +268,13 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
     // event.data может быть null (например, тестовый push без payload).
     // event.data.json() — удобный шорткат: парсит тело как JSON.
-    let data = { title: 'Новое уведомление', body: '' };
+    let data = { title: 'Новое уведомление', body: '', reminderId: null };
     if (event.data) {
         try {
             data = event.data.json();
         } catch {
             // Если payload — не JSON, попробуем text().
-            data = { title: 'Новое уведомление', body: event.data.text() };
+            data = { title: 'Новое уведомление', body: event.data.text(), reminderId: null };
         }
     }
 
@@ -282,17 +284,39 @@ self.addEventListener('push', (event) => {
         // badge — маленькая монохромная иконка в статус-баре Android.
         icon:  './icons/icon-192x192.png',
         badge: './icons/icon-48x48.png',
-        // data — произвольный объект, доступный потом в notificationclick.
-        // Сюда можно положить URL, на который нужно перейти по клику.
-        data:  { url: './', original: data },
+        // data — произвольный объект, доступный потом в notificationclick
+        // через event.notification.data. Кладём reminderId — он понадобится
+        // обработчику snooze, чтобы сказать серверу, какое именно
+        // напоминание отложить.
+        data:  {
+            url: './',
+            reminderId: data.reminderId || null,
+            original: data,
+        },
         // tag — позволяет «схлопывать» уведомления в одно: если с тем же
         // тегом придёт ещё одно уведомление, старое заменится новым,
-        // а не добавится рядом. Удобно для счётчиков, статусов и т.п.
-        tag:   'notes-task',
+        // а не добавится рядом. Для напоминаний делаем индивидуальный
+        // тег: уведомление о задаче 1 не должно затирать уведомление
+        // о задаче 2.
+        tag:   data.reminderId ? `reminder-${data.reminderId}` : 'notes-task',
         // renotify: true — даже если тег совпал, заставит браузер
         // вибрировать/пиликать снова (а не молча обновить старое).
         renotify: true,
     };
+
+    // ===== Практика 17: action-кнопка «Отложить на 5 минут» =====
+    // actions — массив объектов { action, title, icon? }. Браузер рисует
+    // их под текстом уведомления. По клику в обработчике notificationclick
+    // будет event.action = 'snooze'. Добавляем кнопку только для напоминаний:
+    // у обычных уведомлений (newTask) откладывать нечего.
+    if (data.reminderId) {
+        options.actions = [
+            { action: 'snooze', title: 'Отложить на 5 минут' },
+        ];
+        // Для напоминаний дублируем reminderId в title тег, чтобы было
+        // удобно различать в DevTools.
+        options.body = data.body || 'Пора заняться задачей!';
+    }
 
     // event.waitUntil — продлевает жизнь события, пока промис не завершится.
     // Без него браузер может «уснуть» SW в середине показа уведомления.
@@ -312,10 +336,55 @@ self.addEventListener('push', (event) => {
 // вкладку приложения или открыть новую, если ни одной нет.
 
 self.addEventListener('notificationclick', (event) => {
-    // Закрываем уведомление вручную (по умолчанию оно остаётся в шторке).
-    event.notification.close();
+    // event.action содержит идентификатор кнопки, на которую нажал пользователь.
+    // Если кликнули по самому телу уведомления — event.action будет '' (пустая строка).
+    const action       = event.action;
+    const notification = event.notification;
+    const data         = notification.data || {};
 
-    const targetUrl = (event.notification.data && event.notification.data.url) || './';
+    // ===== Практика 17: «Отложить на 5 минут» =====
+    if (action === 'snooze') {
+        // reminderId был положен сервером в push-payload и сохранён нами в data.
+        const reminderId = data.reminderId;
+        if (!reminderId) {
+            console.warn('[sw] snooze: нет reminderId в notification.data');
+            notification.close();
+            return;
+        }
+
+        // Закрываем уведомление сразу — оно своё дело сделало.
+        notification.close();
+
+        // Шлём POST на сервер. Используем АБСОЛЮТНЫЙ URL от self.location:
+        // SW работает на том же origin, что и приложение, поэтому путь
+        // относительно корня сайта будет правильным.
+        //
+        // Если приложение и сервер на одном origin (открыто через notes-server) —
+        // /snooze резолвится в http://localhost:3001/snooze. Если открыли через
+        // другой origin (например, npm start notes-app на 5173) — fetch уйдёт
+        // на 5173, и снуз не сработает. Это известное ограничение учебной
+        // конфигурации; в production push приходят только когда приложение
+        // обслуживается со своего сервера.
+        event.waitUntil(
+            fetch(`/snooze?reminderId=${encodeURIComponent(reminderId)}`, {
+                method: 'POST',
+            })
+            .then((res) => {
+                if (!res.ok) {
+                    console.warn('[sw] snooze HTTP', res.status);
+                }
+            })
+            .catch((err) => {
+                console.error('[sw] snooze failed:', err);
+            })
+        );
+        return;
+    }
+
+    // ===== Обычный клик по уведомлению — фокус/открытие приложения =====
+    notification.close();
+
+    const targetUrl = data.url || './';
 
     event.waitUntil(
         // clients.matchAll возвращает все вкладки, контролируемые этим SW.

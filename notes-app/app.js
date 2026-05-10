@@ -84,9 +84,20 @@ aboutBtn.addEventListener('click', () => {
 const STORAGE_KEY = 'notes';
 
 function initNotes() {
+    // ---- Элементы ОБЫЧНОЙ формы (заметка без напоминания) ----
     const form  = document.getElementById('note-form');
     const input = document.getElementById('note-input');
-    const list  = document.getElementById('notes-list');
+
+    // ---- Элементы формы НАПОМИНАНИЯ (практика 17) ----
+    // datetime-local input возвращает строку вида '2026-05-10T17:30'.
+    // Это локальное время пользователя БЕЗ зоны — браузер интерпретирует
+    // его в текущей зоне устройства. Через `new Date(value).getTime()`
+    // получаем UNIX-timestamp в миллисекундах от UTC-эпохи.
+    const reminderForm = document.getElementById('reminder-form');
+    const reminderText = document.getElementById('reminder-text');
+    const reminderTime = document.getElementById('reminder-time');
+
+    const list = document.getElementById('notes-list');
     if (!form || !input || !list) return;
 
     const getNotes  = () => {
@@ -101,15 +112,23 @@ function initNotes() {
             list.innerHTML = '<li><i>Пока нет заметок. Добавьте первую сверху ↑</i></li>';
             return;
         }
-        list.innerHTML = notes.map(note => `
-            <li data-id="${note.id}">
-                <span>
-                    ${escapeHtml(note.text)}
-                    <span class="meta"> — ${formatDate(note.createdAt)}</span>
-                </span>
-                <button class="delete-btn" data-id="${note.id}">Удалить</button>
-            </li>
-        `).join('');
+        // Если у заметки задан reminder (timestamp), добавляем подсказку
+        // с локализованной датой. То же поле сервер использует для setTimeout.
+        list.innerHTML = notes.map(note => {
+            const reminderInfo = note.reminder
+                ? `<span class="reminder-badge">🔔 ${new Date(note.reminder).toLocaleString('ru-RU')}</span>`
+                : '';
+            return `
+                <li data-id="${note.id}">
+                    <span>
+                        ${escapeHtml(note.text)}
+                        <span class="meta"> — ${formatDate(note.createdAt)}</span>
+                        ${reminderInfo}
+                    </span>
+                    <button class="delete-btn" data-id="${note.id}">Удалить</button>
+                </li>
+            `;
+        }).join('');
     }
 
     function escapeHtml(s) {
@@ -121,31 +140,71 @@ function initNotes() {
         return iso ? new Date(iso).toLocaleString('ru-RU') : '';
     }
 
+    /**
+     * Универсальное добавление заметки.
+     * @param {string} text Содержимое заметки.
+     * @param {number|null} reminderTimestamp UNIX-ms или null, если без напоминания.
+     */
+    function addNote(text, reminderTimestamp = null) {
+        const note = {
+            id: Date.now(),                       // используем как уникальный id
+            text,
+            createdAt: new Date().toISOString(),
+            reminder: reminderTimestamp || null,  // null = обычная заметка
+        };
+
+        const notes = getNotes();
+        notes.push(note);
+        saveNotes(notes);
+        render();
+
+        // Если socket доступен — посылаем серверу разные события для разных типов:
+        //   - newReminder: сервер планирует push на reminderTime;
+        //   - newTask:     обычное оповещение остальных клиентов (через toast).
+        if (socket && socket.connected) {
+            if (reminderTimestamp) {
+                socket.emit('newReminder', {
+                    id: note.id,
+                    text,
+                    reminderTime: reminderTimestamp,
+                });
+            } else {
+                socket.emit('newTask', { text, timestamp: note.id });
+            }
+        }
+    }
+
+    // ---- Обычная заметка ----
     form.addEventListener('submit', (e) => {
         e.preventDefault();
         const text = input.value.trim();
         if (!text) return;
 
-        const note = {
-            id: Date.now(),
-            text,
-            createdAt: new Date().toISOString(),
-        };
-
-        // Сохраняем локально (как и раньше — это для офлайна).
-        const notes = getNotes();
-        notes.push(note);
-        saveNotes(notes);
+        addNote(text);
         input.value = '';
         input.focus();
-        render();
+    });
 
-        // Практика 16: рассылаем событие через WebSocket всем клиентам сервера.
-        // Если socket ещё не подключился — ничего не отправится. Это нормально:
-        // приложение продолжает работать в офлайне.
-        if (socket && socket.connected) {
-            socket.emit('newTask', { text, timestamp: note.id });
+    // ---- Заметка с напоминанием (практика 17) ----
+    reminderForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = reminderText.value.trim();
+        const datetime = reminderTime.value;          // строка типа '2026-05-10T17:30'
+        if (!text || !datetime) return;
+
+        const timestamp = new Date(datetime).getTime();
+
+        // Защита от выбора прошлого времени: setTimeout с отрицательной задержкой
+        // выполнится «сразу же», и пользователь получит мгновенное напоминание,
+        // что не имеет смысла. Лучше предупредить.
+        if (timestamp <= Date.now()) {
+            alert('Дата напоминания должна быть в будущем.');
+            return;
         }
+
+        addNote(text, timestamp);
+        reminderText.value = '';
+        reminderTime.value = '';
     });
 
     list.addEventListener('click', (e) => {
