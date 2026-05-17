@@ -163,9 +163,12 @@ function scheduleReminder({ id, text, reminderTime }) {
         return false;
     }
 
-    // Если по этому id уже есть таймер — отменяем старый, чтобы не было дублей.
+    // Если по этому id уже есть таймер — отменяем старый, чтобы не было дублей
+    // и параллельно отменяем «отложенную очистку» (см. ниже).
     if (reminders.has(id)) {
-        clearTimeout(reminders.get(id).timeoutId);
+        const prev = reminders.get(id);
+        clearTimeout(prev.timeoutId);
+        if (prev.cleanupId) clearTimeout(prev.cleanupId);
     }
 
     const timeoutId = setTimeout(() => {
@@ -175,13 +178,36 @@ function scheduleReminder({ id, text, reminderTime }) {
             body:  text,
             reminderId: id,
         });
-        // После срабатывания запись больше не нужна — освобождаем память.
-        // Если пользователь нажмёт «Отложить на 5 минут», мы создадим новую
-        // запись в обработчике /snooze.
-        reminders.delete(id);
+
+        // ВАЖНО: запись из Map НЕ удаляем сразу. Пользователь сейчас увидит
+        // push в шторке и может нажать «Отложить на 5 минут» в течение
+        // нескольких минут (или дольше). Если удалить запись прямо сейчас —
+        // обработчик /snooze не найдёт reminderId и вернёт 404.
+        //
+        // Стратегия: даём «grace period» = SNOOZE_GRACE_MS, в течение которого
+        // запись доступна для snooze. Если за это время snooze не пришёл —
+        // освобождаем память.
+        //
+        // Проверка `cur.timeoutId === timeoutId` нужна, чтобы НЕ удалить
+        // обновлённую запись: если за grace-period пользователь нажал snooze,
+        // scheduleReminder положит в Map новый объект с новым timeoutId,
+        // и мы его не тронем.
+        const cleanupId = setTimeout(() => {
+            const cur = reminders.get(id);
+            if (cur && cur.timeoutId === timeoutId) {
+                reminders.delete(id);
+                console.log(`[reminder] очищена устаревшая запись ${id}`);
+            }
+        }, SNOOZE_GRACE_MS);
+
+        // Обновляем запись, чтобы snooze знал id очистки (для отмены).
+        const cur = reminders.get(id);
+        if (cur) {
+            cur.cleanupId = cleanupId;
+        }
     }, delay);
 
-    reminders.set(id, { timeoutId, text, reminderTime });
+    reminders.set(id, { timeoutId, text, reminderTime, cleanupId: null });
     console.log(`[reminder] запланирован ${id} на ${new Date(reminderTime).toLocaleString()}`);
     return true;
 }
@@ -203,7 +229,8 @@ function scheduleReminder({ id, text, reminderTime }) {
 // и пришло уведомление с action — запись могла быть удалена; в таком
 // случае мы вернём 404 и зальём это в логах.
 
-const SNOOZE_MS = 5 * 60 * 1000; // 5 минут
+const SNOOZE_MS        = 5  * 60 * 1000; // на сколько откладывает кнопка «Отложить»
+const SNOOZE_GRACE_MS  = 30 * 60 * 1000; // окно после срабатывания, в течение которого ещё можно отложить
 
 app.post('/snooze', (req, res) => {
     // reminderId приходит в query: /snooze?reminderId=12345
